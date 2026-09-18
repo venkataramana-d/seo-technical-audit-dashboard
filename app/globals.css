@@ -5,6 +5,9 @@
 /* Design tokens: modern-SaaS (Linear/Vercel) — restrained indigo accent,
    hairline borders, subtle elevation, light default + dark override. */
 :root {
+  /* Tell the browser which built-in palette to use for native form controls
+     (selects, date pickers, scrollbars) so they don't render light-on-light. */
+  color-scheme: light;
   --seo-app-bg: #FAFAFB;
   --seo-card-bg: #FFFFFF;
   --seo-card-bg-alt: #F7F8FA;
@@ -98,6 +101,9 @@
 }
 
 .dark {
+  /* Match native form controls to the dark theme (this app toggles dark via a
+     class, not prefers-color-scheme, so set it explicitly here). */
+  color-scheme: dark;
   --seo-app-bg: #08080B;
   --seo-card-bg: #121216;
   --seo-card-bg-alt: #17171C;

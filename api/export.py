@@ -1,4 +1,5 @@
 import gzip
+import io
 import json
 import logging
 import os
@@ -9,8 +10,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules._http import send_json  # noqa: E402
 from modules.report_generator import generate_csv, generate_excel, generate_pdf  # noqa: E402
+from worker.auth import AuthError, require_authenticated  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+# Cap the DECOMPRESSED body so a small gzip bomb can't blow up memory (audit
+# finding #7): the largest legit export (a big bulk audit) is well under this.
+_MAX_DECOMPRESSED_BYTES = 64 * 1024 * 1024
 
 MIME = {
     "csv": "text/csv",
@@ -31,18 +37,30 @@ def decode_request_body(raw_body: bytes, content_encoding: str | None) -> dict:
     """
     body = raw_body or b"{}"
     if (content_encoding or "").lower() == "gzip":
-        body = gzip.decompress(body)
+        # Bounded decompression: read at most the cap + 1 byte, then reject if
+        # it overflows — never materialize an unbounded decompressed payload.
+        with gzip.GzipFile(fileobj=io.BytesIO(body)) as gz:
+            body = gz.read(_MAX_DECOMPRESSED_BYTES + 1)
+        if len(body) > _MAX_DECOMPRESSED_BYTES:
+            raise ValueError("decompressed body too large")
     return json.loads(body or b"{}")
 
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        # Formatting-only endpoint, but require sign-in so it isn't an anonymous
+        # CPU/memory sink (audit finding #7).
+        try:
+            require_authenticated(self)
+        except AuthError as e:
+            send_json(self, e.status, {"error": e.message})
+            return
         try:
             length = int(self.headers.get("Content-Length", 0) or 0)
             raw_body = self.rfile.read(length) if length else b""
             try:
                 payload = decode_request_body(raw_body, self.headers.get("Content-Encoding"))
-            except (json.JSONDecodeError, OSError):
+            except (json.JSONDecodeError, OSError, ValueError):
                 send_json(self, 400, {"error": "request body must be valid JSON"})
                 return
 

@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import sys
@@ -6,6 +7,7 @@ from http.server import BaseHTTPRequestHandler
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules._http import bulk_url_cap, read_json_body, require_str, send_json, validate_pattern, validate_url_or_400  # noqa: E402
+from worker.auth import AuthError, require_authenticated  # noqa: E402
 from modules.auditor import audit_url  # noqa: E402
 from modules.crawler import CrawlConfig, crawl_site  # noqa: E402
 from modules.pagespeed import fetch_pagespeed  # noqa: E402
@@ -142,6 +144,10 @@ def _handle_crawl(handler, payload):
                 # via lib/crawl/orchestrator.ts, so this stays fast and safely
                 # under the Vercel maxDuration cap even at MAX_MAX_PAGES.
                 run_full_audit=False,
+                # Hard wall-clock budget under this function's 90s maxDuration
+                # (vercel.json) so a large/slow site can't overrun the timeout;
+                # partial results come back flagged timed_out.
+                max_seconds=80.0,
             )
         except ValueError as e:
             send_json(handler, 400, {"error": str(e)})
@@ -158,6 +164,7 @@ def _handle_crawl(handler, payload):
             "urls": urls,
             "total_found": len(urls),
             "capped": result["stats"]["pages_crawled"] >= max_pages,
+            "timed_out": result["stats"].get("timed_out", False),
             "skipped_robots": len(result.get("skipped_robots", [])),
             "skipped_scope": len(result.get("skipped_scope", [])),
             "errors": len(result.get("errors", [])),
@@ -224,8 +231,19 @@ _ACTIONS = {
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        # All actions perform server-side fetches and/or spend vaulted API keys,
+        # so require a signed-in user (prevents anonymous quota abuse / using the
+        # crawler as an SSRF proxy) — audit finding #4.
+        try:
+            require_authenticated(self)
+        except AuthError as e:
+            send_json(self, e.status, {"error": e.message})
+            return
         try:
             payload = read_json_body(self)
+        except (ValueError, json.JSONDecodeError):
+            send_json(self, 400, {"error": "Request body must be valid JSON."})
+            return
         except Exception:  # noqa: BLE001
             logger.exception("audit-pipeline.py request body could not be parsed")
             send_json(self, 500, {"error": "Internal error while processing the request."})

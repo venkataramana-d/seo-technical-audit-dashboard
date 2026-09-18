@@ -94,7 +94,9 @@ def _handle_create(handler, payload):
         if root_url is None:
             return
 
-        max_pages = min(int(payload.get("maxPages", 50) or 50), bulk_url_cap())
+        # Clamp to [1, cap]: a zero/negative maxPages previously stored fine and
+        # only blew up later in the worker's CrawlConfig (deferred failure).
+        max_pages = max(1, min(int(payload.get("maxPages", 50) or 50), bulk_url_cap()))
         max_depth = max(0, int(payload.get("maxDepth", 3) or 3))
         robots_mode = payload.get("robotsMode") or "respect"
         render_js = bool(payload.get("renderJs", False))

@@ -232,7 +232,11 @@ def persist_result(crawl_id: int, url: str, outcome: dict) -> None:
             page = Page(
                 crawl_id=crawl_id,
                 url=page_data["url"],
-                normalized_url=page_data["url"],
+                # Must be the canonicalized form: site_audit.py and
+                # api/analyze.py match normalized Link.target_url against this,
+                # so an un-normalized value here silently breaks broken-internal
+                # -link and orphan/duplicate detection (audit finding).
+                normalized_url=normalize_url(page_data["url"]),
                 status_code=page_data.get("status_code"),
                 redirect_chain_json=audit.get("redirect_chain") or [],
                 content_hash=content_hash,

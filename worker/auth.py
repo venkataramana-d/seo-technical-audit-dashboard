@@ -64,18 +64,31 @@ class AuthError(Exception):
         self.message = message
 
 
+def dev_mode() -> bool:
+    """True ONLY in an explicit local dev or test context. Any deployed host is
+    treated as production — even one that doesn't set VERCEL — so the auth
+    fallbacks fail closed rather than open (audit finding #1). Recognised dev
+    signals: no VERCEL, plus either a pytest run or APP_ENV=development/test/local."""
+    if os.environ.get("VERCEL"):
+        return False
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return True
+    return (os.environ.get("APP_ENV") or "").strip().lower() in {"dev", "development", "test", "local"}
+
+
 def _auth_secret() -> str:
     s = os.environ.get("AUTH_SECRET")
     if s and len(s) >= 16:
         return s
-    # VERCEL=1 is set for every deployed (prod + preview) invocation.
-    if os.environ.get("VERCEL"):
-        raise AuthError(500, "AUTH_SECRET must be set (>= 16 chars) in production")
+    # Fail closed everywhere except an explicit local dev/test context — never
+    # fall back to a public constant on a real deployment (audit finding #1).
+    if not dev_mode():
+        raise AuthError(500, "AUTH_SECRET must be set (>= 16 chars)")
     return "dev-insecure-secret-do-not-use-in-prod"
 
 
 def _is_prod() -> bool:
-    return bool(os.environ.get("VERCEL"))
+    return not dev_mode()
 
 
 # --------------------------------------------------------------------------- #
@@ -190,6 +203,21 @@ def require_user_id(handler) -> int:
     return uid
 
 
+def require_authenticated(handler) -> int:
+    """Require a signed-in user for credential-consuming / data-reading
+    endpoints (audit, AI, exports, key-vault listing). Enforced on any real
+    deployment; in an explicit local dev/test context it's a no-op (returns 0)
+    so the single-tenant flows and pytest keep working without a seeded login.
+    Prevents anonymous quota abuse and server-side-request-proxy misuse
+    (audit findings #2/#4/#7/#8)."""
+    uid = get_session_user_id(handler)
+    if uid is not None:
+        return uid
+    if not dev_mode():
+        raise AuthError(401, "authentication required")
+    return 0
+
+
 # --------------------------------------------------------------------------- #
 # DB operations (users / organizations / memberships)
 # --------------------------------------------------------------------------- #
@@ -267,7 +295,7 @@ def require_admin(handler, db) -> int:
     single-tenant flows and pytest keep working without seeding a login."""
     uid = get_session_user_id(handler)
     if uid is None:
-        if os.environ.get("VERCEL"):
+        if not dev_mode():
             raise AuthError(401, "authentication required")
         return 0
     if not is_admin(db, uid):
@@ -339,6 +367,65 @@ def generate_temp_password() -> str:
     """A readable, URL-safe temporary password (12 chars) the admin can hand to
     a user after resolving a reset request."""
     return secrets.token_urlsafe(9)  # ~12 chars
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def create_email_reset_token(db, email: str, ttl_seconds: int = 3600) -> str | None:
+    """For the self-serve EMAIL reset path: if the email matches a user, create a
+    pending request carrying a hashed, time-limited token and return the RAW
+    token (to embed in the emailed link). Returns None if no such user (caller
+    still responds ok — no existence leak). Only the SHA-256 hash is stored."""
+    import datetime as _dt
+
+    email = (email or "").strip().lower()
+    user_id = db.scalar(select(User.id).where(User.email == email))
+    if user_id is None:
+        return None
+    now = _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)
+    token = secrets.token_urlsafe(32)
+    db.add(
+        PasswordResetRequest(
+            email=email,
+            user_id=user_id,
+            status="pending",
+            token_hash=_hash_token(token),
+            token_expires_at=now + _dt.timedelta(seconds=ttl_seconds),
+        )
+    )
+    db.commit()
+    return token
+
+
+def reset_password_with_token(db, token: str, new_password: str) -> bool:
+    """Complete a self-serve email reset. Verifies the token hash + expiry, sets
+    the new password, and marks the request resolved. Returns False on an
+    invalid/expired/used token. Raises AuthError(400) if the password is short."""
+    import datetime as _dt
+
+    if len(new_password) < 8:
+        raise AuthError(400, "password must be at least 8 characters")
+    if not token:
+        return False
+    now = _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)
+    req = db.scalar(
+        select(PasswordResetRequest).where(
+            PasswordResetRequest.token_hash == _hash_token(token),
+            PasswordResetRequest.status == "pending",
+        )
+    )
+    if req is None or req.token_expires_at is None or req.token_expires_at < now or req.user_id is None:
+        return False
+    user = db.get(User, req.user_id)
+    if user is None:
+        return False
+    user.password_hash = hash_password(new_password)
+    req.status = "resolved"
+    req.resolved_at = now
+    db.commit()
+    return True
 
 
 def create_password_reset_request(db, email: str) -> None:

@@ -603,7 +603,7 @@ function LinkTable({
               setSearch(e.target.value);
               setPage(0);
             }}
-            className="min-w-[220px] flex-1 rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 text-sm"
+            className="min-w-[220px] flex-1 rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           />
           <select
             value={typeFilter}
@@ -611,7 +611,7 @@ function LinkTable({
               setTypeFilter(e.target.value as TypeFilter);
               setPage(0);
             }}
-            className="rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 text-sm"
+            className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
             <option value="all">Internal + External</option>
             <option value="internal">Internal only</option>
@@ -623,7 +623,7 @@ function LinkTable({
               setFollowFilter(e.target.value as FollowFilter);
               setPage(0);
             }}
-            className="rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 text-sm"
+            className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
             <option value="all">All follow types</option>
             <option value="dofollow">Dofollow only</option>
@@ -635,7 +635,7 @@ function LinkTable({
               setHealthFilter(e.target.value as HealthFilter);
               setPage(0);
             }}
-            className="rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 text-sm"
+            className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
             <option value="all">All health</option>
             <option value="ok">OK only</option>
@@ -648,7 +648,7 @@ function LinkTable({
               setCategoryFilter(e.target.value as CategoryFilter);
               setPage(0);
             }}
-            className="rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 text-sm"
+            className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
             <option value="all">All link types</option>
             <option value="page">Page</option>
@@ -662,7 +662,7 @@ function LinkTable({
               setLocationFilter(e.target.value as LocationFilter);
               setPage(0);
             }}
-            className="rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 text-sm"
+            className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
             <option value="all">All locations</option>
             <option value="body">Body content</option>
@@ -679,7 +679,7 @@ function LinkTable({
                 setStatusFilter(e.target.value);
                 setPage(0);
               }}
-              className="rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 text-sm"
+              className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
             >
               <option value="all">All HTTP status</option>
               {statusCodes.map((c) => (
@@ -948,7 +948,7 @@ function SpecialLinksTable({ links, showSource }: { links: SpecialLinkEntry[]; s
         <select
           value={kindFilter}
           onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)}
-          className="rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 text-sm"
+          className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
         >
           <option value="all">All kinds</option>
           <option value="mailto">Mailto</option>

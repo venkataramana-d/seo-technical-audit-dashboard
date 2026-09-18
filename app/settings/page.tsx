@@ -263,10 +263,12 @@ export default function SettingsPage() {
   const { user, status } = useAuth();
   const [confirmClear, setConfirmClear] = useState(false);
 
-  // Only hide the vault manager when we positively know the signed-in user is a
-  // non-admin. In local dev the auth backend is "unavailable" (role null), so
-  // the manager stays visible there.
-  const isNonAdminUser = status === "authed" && user?.role === "user";
+  // Only show the editable vault manager to a positively-known admin. Anyone
+  // whose role is not "admin" (including an authed user with role null) gets the
+  // read-only notice. In local dev the auth backend is "unavailable" (no roles
+  // enforced), so the manager stays visible there.
+  const isAdmin = user?.role === "admin";
+  const canManageVault = isAdmin || status === "unavailable";
 
   return (
     <div>
@@ -316,8 +318,8 @@ export default function SettingsPage() {
           Profile
         </h3>
         <p className="mb-3 text-sm text-[var(--seo-text-light)]">
-          Optional display info — this app doesn&apos;t have accounts or logins, so
-          it&apos;s just saved in this browser, the same way the Groq key below is.
+          Optional display info — this is saved only in this browser, the same way
+          the Groq key below is, and is separate from your account sign-in.
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
@@ -420,7 +422,7 @@ export default function SettingsPage() {
         </p>
       </Card>
 
-      {isNonAdminUser ? <VaultAdminOnlyNotice /> : <ApiKeyVaultCard />}
+      {canManageVault ? <ApiKeyVaultCard /> : <VaultAdminOnlyNotice />}
 
       <Card>
         <h3 className="mb-2 text-sm font-semibold text-[var(--seo-subheading)]">

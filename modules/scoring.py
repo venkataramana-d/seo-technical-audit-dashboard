@@ -35,6 +35,12 @@ PENALTY = {
 THEMES = {
     "Crawlability": ["Accessibility", "Redirects", "Indexability", "URL Structure"],
     "Metadata":     ["Metadata"],
+    # Page-Specific MUST come before Content: the generic "Content" keyword is a
+    # substring of "Course Content"/"Blog Content", so if Content were checked
+    # first those page-specific issues would be misfiled under Content (the match
+    # loop breaks on the first hit). Keep this ordering in sync with
+    # lib/aggregate.ts's THEMES.
+    "Page-Specific": ["Course Content", "Blog Content", "Conversion"],
     "Content":      ["Content", "Heading", "Readability"],
     "Links":        ["Internal Links", "External Links"],
     "Technical":    ["Canonical", "Technical", "Mobile", "Performance",
@@ -43,7 +49,6 @@ THEMES = {
     "Social & Schema": ["Structured Data", "Social SEO", "International SEO"],
     "Images":       ["Images", "Image SEO"],
     "Site Health":  ["Site Health", "Security"],
-    "Page-Specific": ["Course Content", "Blog Content", "Conversion"],
 }
 
 

@@ -77,9 +77,16 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    if (!isAdmin) return;
     let active = true;
     (async () => {
+      // Not a known admin (non-admin, or status "unavailable" in local dev):
+      // there's nothing to load, so drop the loading state instead of spinning
+      // forever. Done inside the async IIFE so it isn't a synchronous setState
+      // in the effect body (react-hooks/set-state-in-effect).
+      if (!isAdmin) {
+        if (active) setLoading(false);
+        return;
+      }
       try {
         const [u, r] = await Promise.all([
           adminPost("admin-list-users"),

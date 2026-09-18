@@ -79,7 +79,7 @@ class AnthropicLLM:
 def get_llm_for_org(session, org_id, *, model: str = DEFAULT_MODEL) -> LLMClient | None:
     """Build an LLM client from the org's vaulted Anthropic key, or None if the
     org hasn't stored one (agents that need an LLM then no-op gracefully)."""
-    from modules.vault import get_api_key
+    from worker.api_key_service import get_api_key
 
     key = get_api_key(session, org_id, "anthropic")
     if not key:

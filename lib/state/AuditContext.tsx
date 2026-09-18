@@ -39,9 +39,9 @@ interface PersistedState {
   // reopening an unchanged result's AI Summary doesn't re-spend an API call;
   // see lib/aiSummaryCache.ts::fingerprintForSummary for invalidation.
   aiSummaryCache: Record<string, AiSummaryCacheEntry>;
-  // There's no login/auth system in this app (see agents.md) -- this is
-  // just display info the user can optionally fill in, stored the same way
-  // as everything else here (per-browser, IndexedDB), not a real account.
+  // This is optional display info the user can fill in, stored per-browser in
+  // IndexedDB like everything else here. It's separate from the app's account
+  // sign-in (see lib/state/AuthContext.tsx) -- not the authenticated identity.
   profile: Profile;
 }
 

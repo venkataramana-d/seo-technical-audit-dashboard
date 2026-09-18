@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import sys
@@ -9,6 +10,7 @@ from modules._http import read_json_body, require_str, send_json  # noqa: E402
 from modules.ai_assist import explain_audit, suggest_fix  # noqa: E402
 from modules.content_agent import SUPPORTED_ISSUE_TYPES, PageContext, draft_for_issue_type  # noqa: E402
 from worker.api_key_service import get_default_org_vaulted_key  # noqa: E402
+from worker.auth import AuthError, require_authenticated  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -126,16 +128,31 @@ _ACTIONS = {
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         # Config-status is the one GET in this group (just reports whether
-        # server-side keys are set — env var or vault), so it doesn't need
-        # action dispatch.
+        # server-side keys are set — env var or vault). Sign-in required so it
+        # doesn't disclose config to anonymous callers (audit finding #8).
+        try:
+            require_authenticated(self)
+        except AuthError as e:
+            send_json(self, e.status, {"error": e.message})
+            return
         send_json(self, 200, {
             "psiConfigured": bool(os.environ.get("PSI_API_KEY")) or bool(get_default_org_vaulted_key("psi")),
             "groqConfigured": bool(os.environ.get("GROQ_API_KEY")) or bool(get_default_org_vaulted_key("groq")),
         })
 
     def do_POST(self):
+        # All POST actions spend AI/vaulted credentials -> require sign-in
+        # (audit finding #4).
+        try:
+            require_authenticated(self)
+        except AuthError as e:
+            send_json(self, e.status, {"ok": False, "error": e.message})
+            return
         try:
             payload = read_json_body(self)
+        except (ValueError, json.JSONDecodeError):
+            send_json(self, 400, {"ok": False, "error": "Request body must be valid JSON."})
+            return
         except Exception:  # noqa: BLE001
             logger.exception("ai.py request body could not be parsed")
             send_json(self, 500, {"ok": False, "error": "Internal error while processing the request."})
