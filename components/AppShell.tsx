@@ -32,24 +32,26 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const title = pageTitle(pathname);
-  const isLoginRoute = pathname === "/login";
+  // Public, full-bleed routes that render without the app chrome and never
+  // trigger the signed-out redirect (login + the emailed password-reset page).
+  const isPublicRoute = pathname === "/login" || pathname === "/reset";
 
   // Send signed-out users to the login screen — but only when the auth backend
   // is actually reachable. "unavailable" means the Python API isn't running
   // (local `next dev`), where we keep the app open for frontend-only work.
   useEffect(() => {
-    if (status === "anon" && !isLoginRoute) {
+    if (status === "anon" && !isPublicRoute) {
       router.replace("/login");
     }
-  }, [status, isLoginRoute, router]);
+  }, [status, isPublicRoute, router]);
 
-  // The login screen renders full-bleed, without the app chrome.
-  if (isLoginRoute) {
+  // The login / reset screens render full-bleed, without the app chrome.
+  if (isPublicRoute) {
     return <>{children}</>;
   }
 
   // Avoid flashing the app before we know the session, or mid-redirect.
-  if (status === "loading" || (status === "anon" && !isLoginRoute)) {
+  if (status === "loading" || (status === "anon" && !isPublicRoute)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--seo-app-bg)]">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--seo-border-strong)] border-t-[var(--seo-accent)]" aria-label="Loading" />

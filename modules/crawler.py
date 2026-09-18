@@ -64,6 +64,9 @@ class CrawlConfig:
     run_full_audit: bool = True                  # False = discovery + status only, no per-page SEO checks
     render_js: bool = False                       # Phase 4: audit the Playwright-rendered DOM instead of raw HTML
     render_timeout_ms: int = 5000                 # per-page render timeout (Screaming Frog's own default)
+    max_seconds: float = 0.0                       # wall-clock budget for the whole crawl (0 = unlimited); the
+                                                   # Vercel "crawl" action sets this under its maxDuration so one
+                                                   # invocation can't overrun the function timeout
 
     def __post_init__(self):
         if self.seed_source not in SEED_SOURCES:
@@ -325,9 +328,17 @@ def crawl_site(config: CrawlConfig, progress_callback=None, on_result=None) -> d
                         })
         return {"page": page_record, "links": links}
 
+    timed_out = False
+    _crawl_start = time.monotonic()
     try:
         depth = 0
         while frontier and len(visited) < config.max_pages and depth <= config.max_depth:
+            # Wall-clock guard: stop cleanly before overrunning the caller's
+            # budget (e.g. Vercel's function timeout) rather than being killed
+            # mid-request. Returns whatever was crawled so far, flagged.
+            if config.max_seconds and (time.monotonic() - _crawl_start) >= config.max_seconds:
+                timed_out = True
+                break
             remaining = config.max_pages - len(visited)
             batch = [u for u in frontier if u not in visited][:remaining]
             frontier = []
@@ -390,6 +401,7 @@ def crawl_site(config: CrawlConfig, progress_callback=None, on_result=None) -> d
             "pages_skipped_scope": len(skipped_scope),
             "errors": len(errors),
             "depth_reached": depth,
+            "timed_out": timed_out,
             "duration_seconds": round((finished - started).total_seconds(), 2),
             "issues_by_severity": dict(Counter(
                 issue["severity"]

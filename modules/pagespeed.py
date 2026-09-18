@@ -55,13 +55,11 @@ def fetch_pagespeed(url, strategy="mobile", api_key=None):
               opportunities, source.
         On failure: success=False, error=str.
     """
-    if api_key is None:
-        try:
-            from modules.api_key_manager import APIKeyManager
-            api_key = APIKeyManager.get("psi") or None
-        except Exception:
-            api_key = None
-
+    # No internal key lookup here: callers (api/audit-pipeline.py, api/ai.py)
+    # resolve the PSI key from env or the org vault and pass it in explicitly.
+    # If api_key is None we simply use PSI's anonymous quota. (Previously this
+    # imported a non-existent modules.api_key_manager whose ImportError was
+    # silently swallowed, so the fallback never actually did anything.)
     params = {"url": url, "strategy": strategy, "category": ["performance", "accessibility", "seo", "best-practices"]}
     if api_key:
         params["key"] = api_key

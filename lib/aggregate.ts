@@ -10,6 +10,11 @@ import type { AuditResult, Issue } from "@/lib/types";
 export const THEMES: Record<string, string[]> = {
   Crawlability: ["Accessibility", "Redirects", "Indexability", "URL Structure"],
   Metadata: ["Metadata"],
+  // Page-Specific MUST precede Content: "Content" is a substring of "Course
+  // Content"/"Blog Content", and the classifier breaks on first match, so
+  // Content-first would misfile page-specific issues. Kept in sync with
+  // modules/scoring.py THEMES.
+  "Page-Specific": ["Course Content", "Blog Content", "Conversion"],
   Content: ["Content", "Heading", "Readability"],
   Links: ["Internal Links", "External Links"],
   Technical: [
@@ -26,7 +31,6 @@ export const THEMES: Record<string, string[]> = {
   "Social & Schema": ["Structured Data", "Social SEO", "International SEO"],
   Images: ["Images", "Image SEO"],
   "Site Health": ["Site Health", "Security"],
-  "Page-Specific": ["Course Content", "Blog Content", "Conversion"],
 };
 
 export function getThematicIssues(allIssues: Issue[]): Record<string, Issue[]> {

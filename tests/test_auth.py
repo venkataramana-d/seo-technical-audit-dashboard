@@ -330,3 +330,39 @@ def test_admin_actions_blocked_without_session_in_prod(isolated_db, monkeypatch)
     monkeypatch.setenv("VERCEL", "1")
     h = _post("admin-list-users")
     assert _status_and_body(h)[0] == 401
+
+
+# ---- email-based reset (token) ----
+
+def test_email_reset_token_roundtrip(isolated_db):
+    factory = isolated_db
+    _signup(ADMIN_EMAIL)  # admin must exist before a user can join
+    _signup("teammate@acme.test", password="original8")
+    with factory() as db:
+        token = auth.create_email_reset_token(db, "teammate@acme.test")
+        assert token
+        # unknown email yields no token, but doesn't raise
+        assert auth.create_email_reset_token(db, "ghost@nope.test") is None
+    # complete the reset via the API action
+    ok = _post("reset-password-with-token", {"token": token, "newPassword": "brandnew9"})
+    assert _status_and_body(ok)[0] == 200
+    assert _status_and_body(_post("login", {"email": "teammate@acme.test", "password": "brandnew9"}))[0] == 200
+    # token is single-use now -> reject
+    again = _post("reset-password-with-token", {"token": token, "newPassword": "another99"})
+    assert _status_and_body(again)[0] == 400
+
+
+def test_email_reset_token_expired_rejected(isolated_db):
+    factory = isolated_db
+    _signup(ADMIN_EMAIL)  # admin must exist before a user can join
+    _signup("teammate@acme.test", password="original8")
+    with factory() as db:
+        token = auth.create_email_reset_token(db, "teammate@acme.test", ttl_seconds=-1)
+        assert token
+    bad = _post("reset-password-with-token", {"token": token, "newPassword": "brandnew9"})
+    assert _status_and_body(bad)[0] == 400
+
+
+def test_reset_with_bad_token_rejected(isolated_db):
+    h = _post("reset-password-with-token", {"token": "not-a-real-token", "newPassword": "brandnew9"})
+    assert _status_and_body(h)[0] == 400

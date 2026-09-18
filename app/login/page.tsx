@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/state/AuthContext";
 
@@ -8,7 +8,7 @@ type Mode = "login" | "signup" | "forgot";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, signup } = useAuth();
+  const { login, signup, status } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,6 +16,11 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  // An already-authenticated user has no reason to sit on /login — send them home.
+  useEffect(() => {
+    if (status === "authed") router.replace("/");
+  }, [status, router]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -36,7 +41,9 @@ export default function LoginPage() {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || "Could not submit the request.");
         setNotice(
-          "If an account exists for that email, your administrator has been notified and will set a new password for you.",
+          data?.emailed
+            ? "If an account exists for that email, we've sent a password-reset link. Check your inbox (and spam)."
+            : "If an account exists for that email, your administrator has been notified and will set a new password for you.",
         );
         setBusy(false);
       } else {

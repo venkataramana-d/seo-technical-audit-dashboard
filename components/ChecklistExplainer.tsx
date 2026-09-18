@@ -48,7 +48,7 @@ export function ChecklistExplainer() {
               </span>
             ))}
           </div>
-          <div className="mt-3 rounded-lg border-l-2 border-l-[var(--seo-accent)] bg-[var(--seo-card-alt)] px-3 py-2 text-xs text-[var(--seo-text-light)]">
+          <div className="mt-3 rounded-lg border-l-2 border-l-[var(--seo-accent)] bg-[var(--seo-card-bg-alt)] px-3 py-2 text-xs text-[var(--seo-text-light)]">
             <strong className="text-[var(--seo-subheading)]">When to use:</strong> run this as your
             default first audit on any new URL or client site. It covers everything you need before
             publishing, after a site migration, or for a technical SEO proposal.

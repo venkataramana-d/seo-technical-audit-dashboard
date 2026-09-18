@@ -580,7 +580,7 @@ function ImageSeoTab({ results, showSource }: { results: AuditResult[]; showSour
           <select
             value={altFilter}
             onChange={(e) => setAltFilter(e.target.value as AltFilter)}
-            className="rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 text-sm"
+            className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
             <option value="all">All alt statuses</option>
             {Object.entries(ALT_STATUS_LABEL).map(([k, label]) => (
@@ -590,7 +590,7 @@ function ImageSeoTab({ results, showSource }: { results: AuditResult[]; showSour
           <select
             value={formatFilter}
             onChange={(e) => setFormatFilter(e.target.value)}
-            className="rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 text-sm"
+            className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
             <option value="all">All formats</option>
             {formats.map((f) => (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import DOMPurify from "dompurify";
 import Link from "next/link";
 import { useAudit } from "@/lib/state/AuditContext";
 import { Card, DifficultyBadge, EmptyState, HelpSection, IssueRow, PageHeader, ScoreBadge, StatusPill, TabBar } from "@/components/ui";
@@ -204,10 +205,10 @@ export default function DetailPage() {
         <button
           type="button"
           onClick={() => {
-            navigator.clipboard.writeText(r.url).then(() => {
+            navigator.clipboard?.writeText(r.url).then(() => {
               setUrlCopied(true);
               setTimeout(() => setUrlCopied(false), 1500);
-            });
+            }).catch(() => {});
           }}
           className="shrink-0 rounded-lg border border-[var(--seo-border-strong)] px-3 py-2 text-sm font-medium text-[var(--seo-subheading)] hover:bg-[var(--seo-card-hover)]"
         >
@@ -503,7 +504,7 @@ export default function DetailPage() {
                                 onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
                               />
                             ) : (
-                              <div className="flex h-36 w-full items-center justify-center bg-[var(--seo-card-alt)] text-xs text-[var(--seo-muted)]">
+                              <div className="flex h-36 w-full items-center justify-center bg-[var(--seo-card-bg-alt)] text-xs text-[var(--seo-muted)]">
                                 No og:image set
                               </div>
                             )}
@@ -691,10 +692,10 @@ export default function DetailPage() {
             {(r.content?.intro_paragraphs_html?.length || r.content?.conclusion_paragraphs_html?.length) ? (
               <div className="flex flex-col gap-3 text-sm leading-relaxed text-[var(--seo-text)]">
                 {(r.content?.intro_paragraphs_html || []).map((html: string, i: number) => (
-                  <p key={`intro-${i}`} dangerouslySetInnerHTML={{ __html: html }} />
+                  <p key={`intro-${i}`} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
                 ))}
                 {(r.content?.conclusion_paragraphs_html || []).map((html: string, i: number) => (
-                  <p key={`concl-${i}`} dangerouslySetInnerHTML={{ __html: html }} />
+                  <p key={`concl-${i}`} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
                 ))}
               </div>
             ) : (

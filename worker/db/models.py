@@ -65,7 +65,9 @@ class Membership(Base):
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     org_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), primary_key=True)
-    role: Mapped[str] = mapped_column(String(50), default="member", server_default="member")
+    # Roles are "admin" | "user" (worker/auth.py). Default to the least-privileged
+    # "user" so a stray row is never accidentally treated as privileged.
+    role: Mapped[str] = mapped_column(String(50), default="user", server_default="user")
 
 
 class PasswordResetRequest(Base):
@@ -86,6 +88,11 @@ class PasswordResetRequest(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     resolved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    # Self-serve email reset (optional path, when RESEND_API_KEY is set): the
+    # emailed link carries a random token; only its SHA-256 hash is stored, with
+    # a short expiry. NULL for admin-resolved requests.
+    token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 # ---------------------------------------------------------------------------

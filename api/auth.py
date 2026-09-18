@@ -20,14 +20,27 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from modules._http import read_json_body, require_str, send_json  # noqa: E402
 from worker.auth import (  # noqa: E402
     AuthError, build_session_cookie, create_session_token,
-    create_password_reset_request, generate_temp_password, get_session_user_id,
+    create_email_reset_token, create_password_reset_request,
+    generate_temp_password, get_session_user_id,
     list_password_reset_requests, list_users, login as auth_login,
     primary_org_id, require_admin, require_user_id,
-    resolve_password_reset_request, role_for_user, set_user_password,
-    signup as auth_signup, verify_password,
+    reset_password_with_token, resolve_password_reset_request,
+    role_for_user, set_user_password, signup as auth_signup, verify_password,
 )
 from worker.db.models import User  # noqa: E402
 from worker.db.session import SessionLocal  # noqa: E402
+from worker.email_send import email_enabled, password_reset_html, send_email  # noqa: E402
+
+
+def _base_url(handler) -> str:
+    """Best-effort public origin for building links in emails, from the request
+    headers (works behind Vercel's proxy), overridable via APP_BASE_URL."""
+    override = (os.environ.get("APP_BASE_URL") or "").strip().rstrip("/")
+    if override:
+        return override
+    host = handler.headers.get("x-forwarded-host") or handler.headers.get("Host") or ""
+    proto = handler.headers.get("x-forwarded-proto") or ("https" if os.environ.get("VERCEL") else "http")
+    return f"{proto}://{host}".rstrip("/") if host else ""
 
 logger = logging.getLogger(__name__)
 
@@ -107,19 +120,53 @@ def _handle_logout(handler, payload):
 # --------------------------------------------------------------------------- #
 def _handle_request_password_reset(handler, payload):
     """Public: a user reports they've forgotten their password. Always returns
-    ok (no existence leak); the admin sees the request in the admin portal."""
+    ok (no existence leak). If email is configured (RESEND_API_KEY), sends a
+    reset link; otherwise falls back to the admin-resolved queue."""
     email = require_str(handler, payload, "email", field_name="email")
     if email is None:
         return
     try:
-        with SessionLocal() as db:
-            create_password_reset_request(db, email)
-        send_json(handler, 200, {"ok": True})
+        if email_enabled():
+            with SessionLocal() as db:
+                token = create_email_reset_token(db, email)
+            # Only send when the email matched a real account; either way the
+            # response is identical so account existence never leaks.
+            if token:
+                base = _base_url(handler)
+                reset_url = f"{base}/reset?token={token}" if base else f"/reset?token={token}"
+                send_email(email.strip(), "Reset your password", password_reset_html(reset_url))
+            send_json(handler, 200, {"ok": True, "emailed": True})
+        else:
+            with SessionLocal() as db:
+                create_password_reset_request(db, email)
+            send_json(handler, 200, {"ok": True, "emailed": False})
     except AuthError as e:
         send_json(handler, e.status, {"error": e.message})
     except Exception:  # noqa: BLE001
         logger.exception("auth.py request-password-reset failed")
         send_json(handler, 500, {"error": "Internal error while submitting the request."})
+
+
+def _handle_reset_with_token(handler, payload):
+    """Public: complete a self-serve email reset using the token from the link."""
+    token = require_str(handler, payload, "token", field_name="token")
+    if token is None:
+        return
+    new_password = require_str(handler, payload, "newPassword", field_name="newPassword")
+    if new_password is None:
+        return
+    try:
+        with SessionLocal() as db:
+            ok = reset_password_with_token(db, token, new_password)
+        if not ok:
+            send_json(handler, 400, {"error": "This reset link is invalid or has expired. Request a new one."})
+            return
+        send_json(handler, 200, {"ok": True})
+    except AuthError as e:
+        send_json(handler, e.status, {"error": e.message})
+    except Exception:  # noqa: BLE001
+        logger.exception("auth.py reset-password-with-token failed")
+        send_json(handler, 500, {"error": "Internal error while resetting the password."})
 
 
 def _handle_change_password(handler, payload):
@@ -247,6 +294,7 @@ _ACTIONS = {
     "login": _handle_login,
     "logout": _handle_logout,
     "request-password-reset": _handle_request_password_reset,
+    "reset-password-with-token": _handle_reset_with_token,
     "change-password": _handle_change_password,
     "admin-list-users": _handle_admin_list_users,
     "admin-list-reset-requests": _handle_admin_list_reset_requests,

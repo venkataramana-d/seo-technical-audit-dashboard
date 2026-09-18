@@ -172,11 +172,16 @@ export default function TechnicalAuditPage() {
     if (!url.trim()) return;
     setPhase("crawling");
     setError(null);
+    // Wire an AbortController so the "Cancel" button (which calls
+    // abortRef.current?.abort()) actually cancels the in-flight single audit.
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const res = await fetch("/api/audit-pipeline", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "audit", url: url.trim(), auditType, checkLinks, fetchPagespeed }),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (!res.ok) {
@@ -189,8 +194,16 @@ export default function TechnicalAuditPage() {
       addResult(result);
       router.push("/detail");
     } catch (err) {
+      // A user-initiated cancel surfaces as an AbortError — just return to idle
+      // without showing it as a failure.
+      if (controller.signal.aborted) {
+        setPhase("idle");
+        return;
+      }
       setError(err instanceof Error ? err.message : "Audit failed.");
       setPhase("idle");
+    } finally {
+      abortRef.current = null;
     }
   }
 
@@ -683,10 +696,12 @@ function BulkLimitNote({ limit }: { limit: number }) {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  // Nest the control inside the <label> so the label is programmatically
+  // associated with it (no need to thread an id/htmlFor through every caller).
   return (
-    <div>
-      <label className="mb-1 block text-sm font-medium text-[var(--seo-subheading)]">{label}</label>
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-[var(--seo-subheading)]">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }

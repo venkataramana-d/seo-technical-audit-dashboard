@@ -74,7 +74,7 @@ export function TabBar<T extends string>({
   onChange: (tab: T) => void;
 }) {
   return (
-    <div className="mb-4 flex flex-wrap gap-0.5 rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-alt)] p-1">
+    <div className="mb-4 flex flex-wrap gap-0.5 rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-bg-alt)] p-1">
       {tabs.map((t) => (
         <button
           key={t}
@@ -437,7 +437,7 @@ export function EmptyState({ title, hint }: { title: string; hint?: string }) {
  * the explanation is part of the page, not hidden behind an (i) icon. */
 export function HelpSection({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <div className="mt-2 rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-alt)] px-3 py-2">
+    <div className="mt-2 rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-bg-alt)] px-3 py-2">
       {title ? (
         <div className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-[var(--seo-muted)]">
           How to use: {title}

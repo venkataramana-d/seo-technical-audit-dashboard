@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   CartesianGrid,
@@ -1542,7 +1542,7 @@ function SitewideTab({ crawlId }: { crawlId: number }) {
   );
 }
 
-export default function CrawlDetailPage() {
+function CrawlDetailInner() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1558,6 +1558,10 @@ export default function CrawlDetailPage() {
   }
 
   const [status, setStatus] = useState<CrawlStatus | null>(null);
+  // Mirror the latest status in a ref so the poll interval's callback (which
+  // closes over the first render's `status`) can read the current value and
+  // stop once the crawl finishes, without re-creating the interval.
+  const statusRef = useRef<CrawlStatus | null>(null);
   const [themes, setThemes] = useState<Record<string, ThemeReport> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pollCount, setPollCount] = useState(0);
@@ -1592,6 +1596,7 @@ export default function CrawlDetailPage() {
       try {
         const data = await postCrawlsAction<CrawlStatus>({ action: "status", crawlId });
         if (cancelled) return;
+        statusRef.current = data;
         setStatus(data);
         setError(null);
         setPollCount((c) => c + 1);
@@ -1620,7 +1625,12 @@ export default function CrawlDetailPage() {
 
     poll();
     const interval = setInterval(() => {
-      if (status && FINISHED_STATUSES.has(status.status)) return;
+      // Read the live status from the ref (not the stale closure) so the poll
+      // actually stops once the crawl reaches a terminal state.
+      if (statusRef.current && FINISHED_STATUSES.has(statusRef.current.status)) {
+        clearInterval(interval);
+        return;
+      }
       poll();
     }, POLL_INTERVAL_MS);
 
@@ -1628,7 +1638,8 @@ export default function CrawlDetailPage() {
       cancelled = true;
       clearInterval(interval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally keyed on crawlId only; the latest status is read from
+    // statusRef inside the interval, so it needn't be a dependency.
   }, [crawlId]);
 
   async function refetchStatus() {
@@ -1746,5 +1757,15 @@ export default function CrawlDetailPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function CrawlDetailPage() {
+  // useSearchParams() (inside CrawlDetailInner) must have a <Suspense> ancestor
+  // under the App Router, otherwise the whole route opts out of static rendering.
+  return (
+    <Suspense fallback={null}>
+      <CrawlDetailInner />
+    </Suspense>
   );
 }

@@ -79,14 +79,16 @@ class TestAuditPipelineDispatch:
         audit_pipeline.handler.do_POST(h)
         assert called.get("hit") is True
 
-    def test_malformed_body_returns_500_not_crash(self):
+    def test_malformed_body_returns_400_not_crash(self):
+        # A malformed JSON body is a client error (400), not a server error —
+        # see audit finding #4. (Previously mapped to a generic 500.)
         h = MagicMock()
         h.headers = {"Content-Length": "9"}
         h.rfile = io.BytesIO(b"not json!")
         h.wfile = io.BytesIO()
         audit_pipeline.handler.do_POST(h)
         status, body = _sent_status_and_body(h)
-        assert status == 500
+        assert status == 400
         assert "error" in body
 
 

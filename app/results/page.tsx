@@ -394,7 +394,7 @@ export default function ResultsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Filter by path or domain…"
-              className="w-full rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card)] px-3 py-1.5 text-sm text-[var(--seo-text)] placeholder:text-[var(--seo-muted)]"
+              className="w-full rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)] placeholder:text-[var(--seo-muted)]"
             />
           </div>
           <div>
@@ -417,7 +417,7 @@ export default function ResultsPage() {
             <select
               value={sortMode}
               onChange={(e) => setSortMode(e.target.value as SortMode)}
-              className="rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
+              className="rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -432,7 +432,7 @@ export default function ResultsPage() {
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className="rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
+                className="rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
               >
                 <option value="all">All types</option>
                 {types.map((t) => (
@@ -448,7 +448,7 @@ export default function ResultsPage() {
             <select
               value={checklistFilter}
               onChange={(e) => setChecklistFilter(e.target.value as typeof checklistFilter)}
-              className="rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
+              className="rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
             >
               <option value="all">All checklist results</option>
               <option value="has-fail">Has failures</option>
