@@ -52,3 +52,8 @@ backup/
 # Local dev DB (worker/queue.py + worker/db/ — see worker/README.md)
 worker/dev.db
 
+# Plaintext secrets kept locally only — never commit
+API Keys.txt
+*.secrets
+scratch_schema.sql
+
