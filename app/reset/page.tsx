@@ -7,6 +7,7 @@
 
 import { Suspense, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { PasswordInput } from "@/components/ui";
 
 function ResetForm() {
   const router = useRouter();
@@ -88,12 +89,11 @@ function ResetForm() {
             <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
               <div>
                 <label className={labelCls} htmlFor="password">New password</label>
-                <input
+                <PasswordInput
                   id="password"
-                  type="password"
                   className={inputCls}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={setPassword}
                   placeholder="At least 8 characters"
                   required
                   minLength={8}
@@ -102,12 +102,11 @@ function ResetForm() {
               </div>
               <div>
                 <label className={labelCls} htmlFor="confirm">Confirm new password</label>
-                <input
+                <PasswordInput
                   id="confirm"
-                  type="password"
                   className={inputCls}
                   value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
+                  onChange={setConfirm}
                   placeholder="Re-enter the password"
                   required
                   minLength={8}

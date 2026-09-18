@@ -29,13 +29,6 @@ from modules.scoring import get_thematic_issues
 from worker.db.models import Crawl, Issue, Link, Page, Project
 from worker.db.session import SessionLocal
 
-# A floor so orphan/sitemap-diff detection isn't run against a tiny sample
-# even for a shallow test crawl — discover_sitemap_urls itself has its own
-# internal caps (5 root sitemaps, 20 nested index entries), this is just
-# about not under-requesting relative to what was actually crawled.
-_MIN_SITEMAP_COMPARISON_SIZE = 500
-
-
 def _group_duplicates(db, crawl_id: int, column) -> dict:
     """Groups Page rows by a column's value, keeping only groups with >1
     member. Done in Python, not SQL GROUP_CONCAT, since crawl sizes here

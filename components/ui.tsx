@@ -4,10 +4,64 @@ import type { Issue } from "@/lib/types";
 import { fixDifficulty, type Difficulty } from "@/lib/difficulty";
 import { explainCommonIssue, type CommonIssueExplanation } from "@/lib/commonIssuesKB";
 import { detectFixTarget, type FixPageContext, type FixSuggestion } from "@/lib/fixSuggestable";
-import { SparklesIcon, XIcon } from "@/components/icons";
+import { EyeIcon, EyeOffIcon, SparklesIcon, XIcon } from "@/components/icons";
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`card p-5 ${className}`}>{children}</div>;
+}
+
+/**
+ * Password field with a show/hide toggle. Single source of truth for the
+ * password inputs across login, reset, and change-password (previously
+ * copy-pasted). `className` styles the <input> exactly like a plain input; the
+ * reveal button is overlaid on the right and the input gets right padding so
+ * text never sits under it.
+ */
+export function PasswordInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+  autoComplete,
+  minLength,
+  required,
+  className = "",
+}: {
+  id?: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  autoComplete?: string;
+  minLength?: number;
+  required?: boolean;
+  className?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        type={show ? "text" : "password"}
+        className={`${className} pr-10`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        minLength={minLength}
+        required={required}
+      />
+      <button
+        type="button"
+        onClick={() => setShow((s) => !s)}
+        aria-label={show ? "Hide password" : "Show password"}
+        aria-pressed={show}
+        tabIndex={-1}
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--seo-muted)] transition hover:text-[var(--seo-text)]"
+      >
+        {show ? <EyeOffIcon size={17} /> : <EyeIcon size={17} />}
+      </button>
+    </div>
+  );
 }
 
 /** Shared popup/modal: click-to-expand result cards across Issues, Links,

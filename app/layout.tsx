@@ -23,7 +23,12 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
 });
 
-const SITE_URL = "https://seo-audit-dashboard-topaz.vercel.app";
+// Canonical production URL (overridable at build via NEXT_PUBLIC_SITE_URL, or
+// APP_BASE_URL server-side). Keep this in sync with the live Vercel domain.
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.APP_BASE_URL ||
+  "https://seo-technical-audit-dashboard-venkat-ramana.vercel.app";
 const SITE_NAME = "SEO Technical Audit Dashboard";
 const SITE_DESCRIPTION = "Enterprise-grade SEO technical audit tool";
 
@@ -63,7 +68,14 @@ export default async function RootLayout({
   // this inline script needs it or the CSP's script-src blocks it.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
-    <html lang="en" className={`h-full antialiased ${inter.variable} ${jetbrainsMono.variable}`}>
+    <html
+      lang="en"
+      className={`h-full antialiased ${inter.variable} ${jetbrainsMono.variable}`}
+      // themeInitScript sets the theme class/attribute on <html> before React
+      // hydrates, so the server and client markup differ by design — suppress
+      // the resulting (expected) hydration warning on this element only.
+      suppressHydrationWarning
+    >
       <head>
         {/* Browsers strip the `nonce` attribute from the DOM after applying the
             CSP (a security measure), so the client reads nonce="" while the

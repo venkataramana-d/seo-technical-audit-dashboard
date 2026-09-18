@@ -228,3 +228,17 @@ export function BotIcon(p: IconProps) {
     </Svg>
   );
 }
+
+export function EyeIcon(p: IconProps) {
+  return <Svg {...p}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></Svg>;
+}
+
+export function EyeOffIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M10.7 5.1A9.9 9.9 0 0 1 12 5c6.5 0 10 7 10 7a13.2 13.2 0 0 1-1.7 2.4" />
+      <path d="M6.6 6.6A13.3 13.3 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /><path d="m2 2 20 20" />
+    </Svg>
+  );
+}

@@ -265,35 +265,6 @@ def _handle_admin_set_password(handler, payload):
         send_json(handler, 500, {"error": "Internal error while setting the password."})
 
 
-def _handle_admin_email_selftest(handler, payload):
-    """Admin-only: send a test email to confirm the SMTP/Resend setup works and
-    surface the real backend result (delivery errors included). Diagnostic."""
-    to = require_str(handler, payload, "to", field_name="to")
-    if to is None:
-        return
-    try:
-        with SessionLocal() as db:
-            require_admin(handler, db)
-        if not email_enabled():
-            send_json(handler, 200, {
-                "ok": False,
-                "emailEnabled": False,
-                "error": "No email backend configured (set SMTP_USER/SMTP_PASSWORD or RESEND_API_KEY).",
-            })
-            return
-        result = send_email(
-            to.strip(),
-            "SEO Audit — email test",
-            "<p>This is a test email confirming your SEO Audit email setup works.</p>",
-        )
-        send_json(handler, 200, {"emailEnabled": True, **result})
-    except AuthError as e:
-        send_json(handler, e.status, {"error": e.message})
-    except Exception:  # noqa: BLE001
-        logger.exception("auth.py admin-email-selftest failed")
-        send_json(handler, 500, {"error": "Internal error while sending the test email."})
-
-
 def _handle_admin_reset_user(handler, payload):
     """Admin resets a chosen user's password to a fresh temp one (returned once
     to share with the user). Proactive counterpart to admin-resolve-reset."""
@@ -330,7 +301,6 @@ _ACTIONS = {
     "admin-resolve-reset": _handle_admin_resolve_reset,
     "admin-set-password": _handle_admin_set_password,
     "admin-reset-user": _handle_admin_reset_user,
-    "admin-email-selftest": _handle_admin_email_selftest,
 }
 
 

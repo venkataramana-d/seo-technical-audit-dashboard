@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-// Shared by Settings and the Navbar's session pill so both surfaces agree on
-// whether a server-side Groq/PSI key is configured, without each re-deriving
-// its own copy of this one GET request.
+// Reports whether a server-side Groq/PSI key is configured (single GET), so the
+// Settings page can show the right "configured" state without re-deriving it.
 export function useAiConfigStatus() {
   const [psiConfigured, setPsiConfigured] = useState<boolean | null>(null);
   const [groqConfigured, setGroqConfigured] = useState<boolean | null>(null);

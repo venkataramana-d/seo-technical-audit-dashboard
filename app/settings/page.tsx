@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAudit } from "@/lib/state/AuditContext";
 import { useAuth } from "@/lib/state/AuthContext";
-import { Card, PageHeader } from "@/components/ui";
+import { Card, PageHeader, PasswordInput } from "@/components/ui";
 import { MoonIcon, SettingsIcon, SunIcon } from "@/components/icons";
 import { useTheme } from "@/lib/useTheme";
 import { useAiConfigStatus } from "@/lib/useAiConfigStatus";
@@ -221,22 +221,20 @@ function ChangePasswordCard() {
         Update your account password. If an admin issued you a temporary password, change it here.
       </p>
       <div className="flex max-w-[360px] flex-col gap-2.5">
-        <input
-          type="password"
+        <PasswordInput
           className={inputCls}
           placeholder="Current password"
           value={current}
           autoComplete="current-password"
-          onChange={(e) => setCurrent(e.target.value)}
+          onChange={setCurrent}
         />
-        <input
-          type="password"
+        <PasswordInput
           className={inputCls}
           placeholder="New password (at least 8 characters)"
           value={next}
           minLength={8}
           autoComplete="new-password"
-          onChange={(e) => setNext(e.target.value)}
+          onChange={setNext}
         />
         <button
           type="button"

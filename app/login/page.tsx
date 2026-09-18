@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/state/AuthContext";
+import { PasswordInput } from "@/components/ui";
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -144,12 +145,11 @@ export default function LoginPage() {
                     </button>
                   )}
                 </div>
-                <input
+                <PasswordInput
                   id="password"
-                  type="password"
                   className={inputCls}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={setPassword}
                   placeholder={mode === "signup" ? "At least 8 characters" : "Your password"}
                   required
                   minLength={8}

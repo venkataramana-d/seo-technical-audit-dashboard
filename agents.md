@@ -401,9 +401,10 @@ rotated bar for the magnifying glass) rather than the 🔍 emoji glyph:
 Satori has no bundled emoji font, so an emoji character silently renders as
 a blurry fallback glyph instead of the icon. `app/manifest.ts` references
 those same icon routes. `metadataBase`/`openGraph.url` in `app/layout.tsx`
-point at `https://seo-audit-dashboard-topaz.vercel.app` (update if the
-deploy domain changes). The old default Next.js `app/favicon.ico` was
-deleted in favor of `icon.tsx`.
+default to `https://seo-technical-audit-dashboard-venkat-ramana.vercel.app`
+(the live domain), overridable via the `NEXT_PUBLIC_SITE_URL` / `APP_BASE_URL`
+env vars if the deploy domain changes. The old default Next.js
+`app/favicon.ico` was deleted in favor of `icon.tsx`.
 
 ## Design system (modern-SaaS, Session 23)
 - **Font:** Inter (UI) + JetBrains Mono (`.font-mono`, for URLs/values), wired via
