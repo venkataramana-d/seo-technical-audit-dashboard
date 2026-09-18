@@ -113,9 +113,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             </button>
             <ThemeToggle />
             {user ? (
-              <div className="flex items-center gap-2 border-l border-[var(--seo-border)] pl-2.5">
+              <div className="flex shrink-0 items-center gap-2 border-l border-[var(--seo-border)] pl-2.5">
                 <div
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-bold text-white"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white"
                   style={{ background: "var(--seo-gradient)" }}
                   title={user.email}
                   aria-hidden="true"
@@ -131,7 +131,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     await logout();
                     router.replace("/login");
                   }}
-                  className="rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-[var(--seo-muted)] transition hover:bg-[var(--seo-card-hover)] hover:text-[var(--seo-text)]"
+                  className="shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-[var(--seo-muted)] transition hover:bg-[var(--seo-card-hover)] hover:text-[var(--seo-text)]"
                 >
                   Log out
                 </button>
