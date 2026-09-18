@@ -230,3 +230,103 @@ def test_logout_clears_cookie(isolated_db):
     status, _ = _status_and_body(h)
     assert status == 200
     assert "Max-Age=0" in _set_cookie(h)
+
+
+# ---- password reset (admin-resolved) + user management ----
+
+def _post(action, body=None, cookie=None):
+    h = _mock_handler({"action": action, **(body or {})}, cookie=cookie)
+    auth_api.handler.do_POST(h)
+    return h
+
+
+def test_request_password_reset_always_ok_no_leak(isolated_db):
+    _signup(ADMIN_EMAIL)
+    # existing email
+    h1 = _post("request-password-reset", {"email": ADMIN_EMAIL})
+    s1, b1 = _status_and_body(h1)
+    # unknown email — same ok response (no existence leak)
+    h2 = _post("request-password-reset", {"email": "ghost@nope.test"})
+    s2, b2 = _status_and_body(h2)
+    assert s1 == 200 and b1.get("ok") is True
+    assert s2 == 200 and b2.get("ok") is True
+
+
+def test_admin_list_users_requires_admin(isolated_db):
+    admin_cookie = _cookie_header_from(_set_cookie(_signup(ADMIN_EMAIL)))
+    user_cookie = _cookie_header_from(_set_cookie(_signup("teammate@acme.test")))
+
+    # admin sees both users
+    ha = _post("admin-list-users", cookie=admin_cookie)
+    sa, ba = _status_and_body(ha)
+    assert sa == 200
+    emails = {u["email"] for u in ba["users"]}
+    assert ADMIN_EMAIL in emails and "teammate@acme.test" in emails
+
+    # a regular user is blocked (403)
+    hu = _post("admin-list-users", cookie=user_cookie)
+    su, _ = _status_and_body(hu)
+    assert su == 403
+
+
+def test_forgot_then_admin_resolve_issues_working_temp_password(isolated_db):
+    admin_cookie = _cookie_header_from(_set_cookie(_signup(ADMIN_EMAIL)))
+    _signup("teammate@acme.test", password="original8")
+
+    # user forgets password -> request queued
+    _post("request-password-reset", {"email": "teammate@acme.test"})
+    lst = _post("admin-list-reset-requests", cookie=admin_cookie)
+    _, lb = _status_and_body(lst)
+    assert len(lb["requests"]) == 1
+    req_id = lb["requests"][0]["id"]
+
+    # admin resolves -> gets a one-time temp password
+    res = _post("admin-resolve-reset", {"requestId": req_id}, cookie=admin_cookie)
+    sr, rb = _status_and_body(res)
+    assert sr == 200 and rb["email"] == "teammate@acme.test"
+    temp = rb["tempPassword"]
+    assert temp
+
+    # the temp password actually works for login; the old one no longer does
+    ok = _post("login", {"email": "teammate@acme.test", "password": temp})
+    assert _status_and_body(ok)[0] == 200
+    bad = _post("login", {"email": "teammate@acme.test", "password": "original8"})
+    assert _status_and_body(bad)[0] == 401
+
+    # request no longer pending
+    lst2 = _post("admin-list-reset-requests", cookie=admin_cookie)
+    assert len(_status_and_body(lst2)[1]["requests"]) == 0
+
+
+def test_admin_reset_user_directly(isolated_db):
+    admin_cookie = _cookie_header_from(_set_cookie(_signup(ADMIN_EMAIL)))
+    uh = _signup("teammate@acme.test", password="original8")
+    _, ub = _status_and_body(uh)
+    uid = ub["user"]["id"]
+
+    res = _post("admin-reset-user", {"userId": uid}, cookie=admin_cookie)
+    sr, rb = _status_and_body(res)
+    assert sr == 200
+    temp = rb["tempPassword"]
+    assert _status_and_body(_post("login", {"email": "teammate@acme.test", "password": temp}))[0] == 200
+
+
+def test_change_password_self_service(isolated_db):
+    h = _signup(ADMIN_EMAIL, password="original8")
+    cookie = _cookie_header_from(_set_cookie(h))
+
+    # wrong current password rejected
+    bad = _post("change-password", {"currentPassword": "wrongpass", "newPassword": "newpass99"}, cookie=cookie)
+    assert _status_and_body(bad)[0] == 400
+
+    # correct current password succeeds, new one works
+    ok = _post("change-password", {"currentPassword": "original8", "newPassword": "newpass99"}, cookie=cookie)
+    assert _status_and_body(ok)[0] == 200
+    assert _status_and_body(_post("login", {"email": ADMIN_EMAIL, "password": "newpass99"}))[0] == 200
+
+
+def test_admin_actions_blocked_without_session_in_prod(isolated_db, monkeypatch):
+    # deployed (VERCEL set) with no session -> 401
+    monkeypatch.setenv("VERCEL", "1")
+    h = _post("admin-list-users")
+    assert _status_and_body(h)[0] == 401

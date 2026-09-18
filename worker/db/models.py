@@ -68,6 +68,26 @@ class Membership(Base):
     role: Mapped[str] = mapped_column(String(50), default="member", server_default="member")
 
 
+class PasswordResetRequest(Base):
+    """A user's "I forgot my password" request. The admin resolves it from the
+    admin portal by setting a new (temporary) password — no email service is
+    involved. `email` is stored denormalized so a request can be raised for an
+    address even if it doesn't match a user (shown to the admin as "no such
+    account") without leaking existence back to the requester."""
+
+    __tablename__ = "password_reset_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(
+        String(20), default="pending", server_default="pending", index=True
+    )  # pending|resolved
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    resolved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
 # ---------------------------------------------------------------------------
 # Projects & crawl config
 # ---------------------------------------------------------------------------

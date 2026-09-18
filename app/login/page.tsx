@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/state/AuthContext";
 
-type Mode = "login" | "signup";
+type Mode = "login" | "signup" | "forgot";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,18 +15,34 @@ export default function LoginPage() {
   const [orgName, setOrgName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       if (mode === "signup") {
         await signup(email.trim(), password, orgName.trim());
+        router.replace("/");
+      } else if (mode === "forgot") {
+        const res = await fetch("/api/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ action: "request-password-reset", email: email.trim() }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "Could not submit the request.");
+        setNotice(
+          "If an account exists for that email, your administrator has been notified and will set a new password for you.",
+        );
+        setBusy(false);
       } else {
         await login(email.trim(), password);
+        router.replace("/");
       }
-      router.replace("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setBusy(false);
@@ -61,12 +77,18 @@ export default function LoginPage() {
           className="rounded-[var(--seo-radius-lg)] border border-[var(--seo-border)] bg-[var(--seo-card-bg)] p-6 shadow-[var(--seo-shadow-lg)] sm:p-7"
         >
           <h1 className="text-[20px] font-bold tracking-tight text-[var(--seo-heading)]">
-            {mode === "login" ? "Welcome back" : "Create your workspace"}
+            {mode === "login"
+              ? "Welcome back"
+              : mode === "signup"
+                ? "Create your workspace"
+                : "Reset your password"}
           </h1>
           <p className="mt-1 text-[13.5px] text-[var(--seo-text-light)]">
             {mode === "login"
               ? "Sign in to your audit workspace."
-              : "Start auditing sites and saving your crawl history."}
+              : mode === "signup"
+                ? "Start auditing sites and saving your crawl history."
+                : "Enter your email and your administrator will set a new password for you."}
           </p>
 
           <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
@@ -97,20 +119,51 @@ export default function LoginPage() {
                 autoComplete="email"
               />
             </div>
-            <div>
-              <label className={labelCls} htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                className={inputCls}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={mode === "signup" ? "At least 8 characters" : "Your password"}
-                required
-                minLength={8}
-                autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              />
-            </div>
+            {mode !== "forgot" && (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className={labelCls + " mb-0"} htmlFor="password">Password</label>
+                  {mode === "login" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError("");
+                        setNotice("");
+                        setMode("forgot");
+                      }}
+                      className="text-[12px] font-semibold text-[var(--seo-accent)] hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <input
+                  id="password"
+                  type="password"
+                  className={inputCls}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={mode === "signup" ? "At least 8 characters" : "Your password"}
+                  required
+                  minLength={8}
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                />
+              </div>
+            )}
+
+            {notice && (
+              <div
+                role="status"
+                className="rounded-[var(--seo-radius-sm)] border px-3.5 py-2.5 text-[13px]"
+                style={{
+                  background: "var(--seo-accent-light)",
+                  borderColor: "var(--seo-accent)",
+                  color: "var(--seo-heading)",
+                }}
+              >
+                {notice}
+              </div>
+            )}
 
             {error && (
               <div
@@ -131,23 +184,49 @@ export default function LoginPage() {
               disabled={busy}
               className="mt-1 flex items-center justify-center rounded-[var(--seo-radius-sm)] btn-gradient px-4 py-2.5 text-[14px] font-semibold text-white transition disabled:opacity-60"
             >
-              {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
+              {busy
+                ? "Please wait…"
+                : mode === "login"
+                  ? "Sign in"
+                  : mode === "signup"
+                    ? "Create account"
+                    : "Send reset request"}
             </button>
           </form>
         </div>
 
         <p className="mt-5 text-center text-[13px] text-[var(--seo-text-light)]">
-          {mode === "login" ? "New here?" : "Already have an account?"}{" "}
-          <button
-            type="button"
-            onClick={() => {
-              setError("");
-              setMode(mode === "login" ? "signup" : "login");
-            }}
-            className="font-semibold text-[var(--seo-accent)] hover:underline"
-          >
-            {mode === "login" ? "Create a workspace" : "Sign in"}
-          </button>
+          {mode === "forgot" ? (
+            <>
+              Remembered it?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setNotice("");
+                  setMode("login");
+                }}
+                className="font-semibold text-[var(--seo-accent)] hover:underline"
+              >
+                Back to sign in
+              </button>
+            </>
+          ) : (
+            <>
+              {mode === "login" ? "New here?" : "Already have an account?"}{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setNotice("");
+                  setMode(mode === "login" ? "signup" : "login");
+                }}
+                className="font-semibold text-[var(--seo-accent)] hover:underline"
+              >
+                {mode === "login" ? "Create a workspace" : "Sign in"}
+              </button>
+            </>
+          )}
         </p>
       </div>
     </div>
