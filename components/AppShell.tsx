@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { PlusIcon } from "@/components/icons";
 import { useAudit } from "@/lib/state/AuditContext";
 import { useAuth } from "@/lib/state/AuthContext";
+import { displayNameFromEmail } from "@/lib/format";
 
 // Breadcrumb label for the current route (the detail drill-down reads as part
 // of Results). Kept in sync with the nav items in Sidebar.tsx.
@@ -122,8 +123,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 >
                   {user.email.slice(0, 1).toUpperCase()}
                 </div>
-                <span className="hidden max-w-[150px] truncate text-[13px] text-[var(--seo-text-light)] lg:inline">
-                  {user.email}
+                <span
+                  className="hidden max-w-[150px] truncate text-[13px] text-[var(--seo-text-light)] lg:inline"
+                  title={user.email}
+                >
+                  {displayNameFromEmail(user.email)}
                 </span>
                 <button
                   type="button"

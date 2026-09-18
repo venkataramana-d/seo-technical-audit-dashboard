@@ -1,3 +1,19 @@
+/**
+ * A human-readable display name derived from an email's local part, since
+ * accounts have no separate name field. "venkat.r@edstellar.com" -> "Venkat R",
+ * "jane_doe@x.com" -> "Jane Doe". Falls back to the raw email if it has no
+ * local part.
+ */
+export function displayNameFromEmail(email: string): string {
+  const local = (email || "").split("@")[0];
+  if (!local) return email || "";
+  return local
+    .split(/[.\-_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 // Single source of truth for score tiering: scoreColor() (on-screen badges)
 // and scoreLabel() (CSV/Excel export, lib/reportExport.ts) used to have
 // independently-drifted thresholds (90/70/50 vs 90/75/50), so a score of
