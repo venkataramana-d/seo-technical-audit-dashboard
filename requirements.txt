@@ -1,6 +1,10 @@
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
+# CSS-selector custom extraction (modules/custom_extraction.py::_run_css uses
+# lxml.cssselect.CSSSelector, which requires this companion package). Without
+# it, the CSS SelectorType silently fails at runtime with an ImportError.
+cssselect>=1.2
 xlsxwriter>=3.1.0
 fpdf2>=2.7.6
 urllib3>=2.0.0
