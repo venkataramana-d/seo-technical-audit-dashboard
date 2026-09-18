@@ -21,7 +21,14 @@ from http.cookies import SimpleCookie
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from worker.db.models import Membership, Organization, User
+import secrets
+
+from worker.db.models import (
+    Membership,
+    Organization,
+    PasswordResetRequest,
+    User,
+)
 
 SESSION_COOKIE = "sa_session"
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 7  # 7 days
@@ -292,3 +299,118 @@ def primary_org_id(db, user_id: int) -> int | None:
     return db.scalar(
         select(Membership.org_id).where(Membership.user_id == user_id).order_by(Membership.org_id)
     )
+
+
+# --------------------------------------------------------------------------- #
+# Admin user management + password reset (admin-resolved, no email service)
+# --------------------------------------------------------------------------- #
+def list_users(db) -> list[dict]:
+    """Every user with their role — for the admin portal's Users screen."""
+    rows = db.execute(
+        select(User.id, User.email, User.created_at, Membership.role)
+        .join(Membership, Membership.user_id == User.id, isouter=True)
+        .order_by(User.id)
+    ).all()
+    return [
+        {
+            "id": r.id,
+            "email": r.email,
+            "role": r.role,
+            "createdAt": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+
+def set_user_password(db, user_id: int, new_password: str) -> bool:
+    """Set a user's password (admin action or self-service). Returns False if
+    the user doesn't exist. Raises AuthError(400) if the password is too short."""
+    if len(new_password) < 8:
+        raise AuthError(400, "password must be at least 8 characters")
+    user = db.get(User, user_id)
+    if user is None:
+        return False
+    user.password_hash = hash_password(new_password)
+    db.commit()
+    return True
+
+
+def generate_temp_password() -> str:
+    """A readable, URL-safe temporary password (12 chars) the admin can hand to
+    a user after resolving a reset request."""
+    return secrets.token_urlsafe(9)  # ~12 chars
+
+
+def create_password_reset_request(db, email: str) -> None:
+    """Record a 'forgot password' request. Always succeeds silently (no
+    existence leak): links to a user_id when the email matches, else stores the
+    raw email for the admin to see as 'no matching account'. Collapses repeated
+    pending requests for the same email into one."""
+    email = (email or "").strip().lower()
+    if not email:
+        raise AuthError(400, "email is required")
+    user_id = db.scalar(select(User.id).where(User.email == email))
+    existing = db.scalar(
+        select(PasswordResetRequest.id).where(
+            PasswordResetRequest.email == email,
+            PasswordResetRequest.status == "pending",
+        )
+    )
+    if existing is not None:
+        return  # already pending — don't pile up duplicates
+    db.add(PasswordResetRequest(email=email, user_id=user_id, status="pending"))
+    db.commit()
+
+
+def list_password_reset_requests(db, status: str = "pending") -> list[dict]:
+    """Reset requests for the admin portal, newest first."""
+    stmt = select(PasswordResetRequest).order_by(PasswordResetRequest.created_at.desc())
+    if status:
+        stmt = stmt.where(PasswordResetRequest.status == status)
+    out = []
+    for req in db.scalars(stmt):
+        out.append(
+            {
+                "id": req.id,
+                "email": req.email,
+                "userId": req.user_id,
+                "hasAccount": req.user_id is not None,
+                "status": req.status,
+                "createdAt": req.created_at.isoformat() if req.created_at else None,
+                "resolvedAt": req.resolved_at.isoformat() if req.resolved_at else None,
+            }
+        )
+    return out
+
+
+def resolve_password_reset_request(db, request_id: int, admin_user_id: int) -> dict:
+    """Resolve a reset request by setting a fresh temporary password on the
+    target user. Returns {ok, tempPassword, email} — the temp password is
+    returned exactly once for the admin to share; it is never stored in
+    plaintext. Raises AuthError(404) if the request or its user is gone."""
+    import datetime as _dt
+
+    # Naive UTC, matching the DateTime (no tz) columns and safe on Postgres.
+    now = _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)
+
+    req = db.get(PasswordResetRequest, request_id)
+    if req is None or req.status != "pending":
+        raise AuthError(404, "reset request not found or already resolved")
+    if req.user_id is None:
+        # No account for that email — mark resolved so it leaves the queue.
+        req.status = "resolved"
+        req.resolved_at = now
+        req.resolved_by = admin_user_id or None
+        db.commit()
+        raise AuthError(404, "no account exists for that email; request cleared")
+
+    temp = generate_temp_password()
+    user = db.get(User, req.user_id)
+    if user is None:
+        raise AuthError(404, "the user for this request no longer exists")
+    user.password_hash = hash_password(temp)
+    req.status = "resolved"
+    req.resolved_at = now
+    req.resolved_by = admin_user_id or None
+    db.commit()
+    return {"ok": True, "tempPassword": temp, "email": user.email}

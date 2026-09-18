@@ -183,6 +183,79 @@ function VaultAdminOnlyNotice() {
   );
 }
 
+function ChangePasswordCard() {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function submit() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "change-password", currentPassword: current, newPassword: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Could not change the password.");
+      setMsg({ ok: true, text: "Password changed." });
+      setCurrent("");
+      setNext("");
+    } catch (err) {
+      setMsg({ ok: false, text: err instanceof Error ? err.message : "Could not change the password." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inputCls =
+    "w-full rounded-[var(--seo-radius-sm)] border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-2 text-[13.5px] text-[var(--seo-text)] outline-none focus:border-[var(--seo-accent)]";
+
+  return (
+    <Card className="mb-4">
+      <h3 className="mb-2 text-sm font-semibold text-[var(--seo-subheading)]">Change password</h3>
+      <p className="mb-3 text-sm text-[var(--seo-text-light)]">
+        Update your account password. If an admin issued you a temporary password, change it here.
+      </p>
+      <div className="flex max-w-[360px] flex-col gap-2.5">
+        <input
+          type="password"
+          className={inputCls}
+          placeholder="Current password"
+          value={current}
+          autoComplete="current-password"
+          onChange={(e) => setCurrent(e.target.value)}
+        />
+        <input
+          type="password"
+          className={inputCls}
+          placeholder="New password (at least 8 characters)"
+          value={next}
+          minLength={8}
+          autoComplete="new-password"
+          onChange={(e) => setNext(e.target.value)}
+        />
+        <button
+          type="button"
+          disabled={busy || current.length < 1 || next.length < 8}
+          onClick={submit}
+          className="self-start rounded-[var(--seo-radius-sm)] btn-gradient px-4 py-2 text-[13.5px] font-semibold text-white transition disabled:opacity-50"
+        >
+          {busy ? "Saving…" : "Change password"}
+        </button>
+        {msg && (
+          <p className={`text-[13px] ${msg.ok ? "text-[var(--seo-accent)]" : "text-[var(--seo-error)]"}`}>
+            {msg.text}
+          </p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { results, clearAll, groqApiKey, setGroqApiKey, profile, setProfile } = useAudit();
   const { dark, setDark } = useTheme();
@@ -198,6 +271,8 @@ export default function SettingsPage() {
   return (
     <div>
       <PageHeader icon={<SettingsIcon size={18} />} title="Settings" />
+
+      <ChangePasswordCard />
 
       <Card className="mb-4">
         <h3 className="mb-2 text-sm font-semibold text-[var(--seo-subheading)]">

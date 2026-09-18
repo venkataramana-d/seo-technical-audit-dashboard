@@ -10,7 +10,9 @@ import {
   ScanIcon,
   SearchIcon,
   SettingsIcon,
+  ShieldIcon,
 } from "@/components/icons";
+import { useAuth } from "@/lib/state/AuthContext";
 
 type IconType = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
 
@@ -46,6 +48,11 @@ function resolveActiveHref(pathname: string): string {
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const active = resolveActiveHref(pathname);
+  const { user } = useAuth();
+  const navItems: NavItem[] =
+    user?.role === "admin"
+      ? [...NAV_ITEMS, { href: "/admin", icon: ShieldIcon, label: "Admin" }]
+      : NAV_ITEMS;
 
   return (
     <div className="flex h-full flex-col gap-1 px-3.5 py-5">
@@ -68,7 +75,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex flex-col gap-0.5">
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.href;
           return (

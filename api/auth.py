@@ -19,8 +19,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules._http import read_json_body, require_str, send_json  # noqa: E402
 from worker.auth import (  # noqa: E402
-    AuthError, build_session_cookie, create_session_token, get_session_user_id,
-    login as auth_login, primary_org_id, role_for_user, signup as auth_signup,
+    AuthError, build_session_cookie, create_session_token,
+    create_password_reset_request, generate_temp_password, get_session_user_id,
+    list_password_reset_requests, list_users, login as auth_login,
+    primary_org_id, require_admin, require_user_id,
+    resolve_password_reset_request, role_for_user, set_user_password,
+    signup as auth_signup, verify_password,
 )
 from worker.db.models import User  # noqa: E402
 from worker.db.session import SessionLocal  # noqa: E402
@@ -98,10 +102,157 @@ def _handle_logout(handler, payload):
     _send_json_with_cookie(handler, 200, {"ok": True}, build_session_cookie("", clear=True))
 
 
+# --------------------------------------------------------------------------- #
+# Password reset (admin-resolved) + self-service change-password
+# --------------------------------------------------------------------------- #
+def _handle_request_password_reset(handler, payload):
+    """Public: a user reports they've forgotten their password. Always returns
+    ok (no existence leak); the admin sees the request in the admin portal."""
+    email = require_str(handler, payload, "email", field_name="email")
+    if email is None:
+        return
+    try:
+        with SessionLocal() as db:
+            create_password_reset_request(db, email)
+        send_json(handler, 200, {"ok": True})
+    except AuthError as e:
+        send_json(handler, e.status, {"error": e.message})
+    except Exception:  # noqa: BLE001
+        logger.exception("auth.py request-password-reset failed")
+        send_json(handler, 500, {"error": "Internal error while submitting the request."})
+
+
+def _handle_change_password(handler, payload):
+    """Self-service: a signed-in user changes their own password after
+    confirming their current one."""
+    current = require_str(handler, payload, "currentPassword", field_name="currentPassword")
+    if current is None:
+        return
+    new_password = require_str(handler, payload, "newPassword", field_name="newPassword")
+    if new_password is None:
+        return
+    try:
+        with SessionLocal() as db:
+            uid = require_user_id(handler)
+            user = db.get(User, uid)
+            if user is None or not verify_password(current, user.password_hash):
+                send_json(handler, 400, {"error": "current password is incorrect"})
+                return
+            set_user_password(db, uid, new_password)
+        send_json(handler, 200, {"ok": True})
+    except AuthError as e:
+        send_json(handler, e.status, {"error": e.message})
+    except Exception:  # noqa: BLE001
+        logger.exception("auth.py change-password failed")
+        send_json(handler, 500, {"error": "Internal error while changing the password."})
+
+
+# --------------------------------------------------------------------------- #
+# Admin-only: user management + resolving reset requests
+# --------------------------------------------------------------------------- #
+def _handle_admin_list_users(handler, payload):
+    try:
+        with SessionLocal() as db:
+            require_admin(handler, db)
+            send_json(handler, 200, {"users": list_users(db)})
+    except AuthError as e:
+        send_json(handler, e.status, {"error": e.message})
+    except Exception:  # noqa: BLE001
+        logger.exception("auth.py admin-list-users failed")
+        send_json(handler, 500, {"error": "Internal error while listing users."})
+
+
+def _handle_admin_list_reset_requests(handler, payload):
+    try:
+        with SessionLocal() as db:
+            require_admin(handler, db)
+            status = (payload.get("status") or "pending").strip()
+            send_json(handler, 200, {"requests": list_password_reset_requests(db, status)})
+    except AuthError as e:
+        send_json(handler, e.status, {"error": e.message})
+    except Exception:  # noqa: BLE001
+        logger.exception("auth.py admin-list-reset-requests failed")
+        send_json(handler, 500, {"error": "Internal error while listing reset requests."})
+
+
+def _handle_admin_resolve_reset(handler, payload):
+    """Admin resolves a reset request -> returns a one-time temp password to
+    share with the user."""
+    request_id = payload.get("requestId")
+    if not isinstance(request_id, int):
+        send_json(handler, 400, {"error": "requestId (integer) is required"})
+        return
+    try:
+        with SessionLocal() as db:
+            admin_uid = require_admin(handler, db)
+            result = resolve_password_reset_request(db, request_id, admin_uid)
+        send_json(handler, 200, result)
+    except AuthError as e:
+        send_json(handler, e.status, {"error": e.message})
+    except Exception:  # noqa: BLE001
+        logger.exception("auth.py admin-resolve-reset failed")
+        send_json(handler, 500, {"error": "Internal error while resolving the request."})
+
+
+def _handle_admin_set_password(handler, payload):
+    """Admin directly sets a chosen user's password (returns nothing sensitive)."""
+    user_id = payload.get("userId")
+    if not isinstance(user_id, int):
+        send_json(handler, 400, {"error": "userId (integer) is required"})
+        return
+    new_password = require_str(handler, payload, "newPassword", field_name="newPassword")
+    if new_password is None:
+        return
+    try:
+        with SessionLocal() as db:
+            require_admin(handler, db)
+            ok = set_user_password(db, user_id, new_password)
+        if not ok:
+            send_json(handler, 404, {"error": "user not found"})
+            return
+        send_json(handler, 200, {"ok": True})
+    except AuthError as e:
+        send_json(handler, e.status, {"error": e.message})
+    except Exception:  # noqa: BLE001
+        logger.exception("auth.py admin-set-password failed")
+        send_json(handler, 500, {"error": "Internal error while setting the password."})
+
+
+def _handle_admin_reset_user(handler, payload):
+    """Admin resets a chosen user's password to a fresh temp one (returned once
+    to share with the user). Proactive counterpart to admin-resolve-reset."""
+    user_id = payload.get("userId")
+    if not isinstance(user_id, int):
+        send_json(handler, 400, {"error": "userId (integer) is required"})
+        return
+    try:
+        with SessionLocal() as db:
+            require_admin(handler, db)
+            temp = generate_temp_password()
+            ok = set_user_password(db, user_id, temp)
+            if not ok:
+                send_json(handler, 404, {"error": "user not found"})
+                return
+            user = db.get(User, user_id)
+            send_json(handler, 200, {"ok": True, "tempPassword": temp, "email": user.email})
+    except AuthError as e:
+        send_json(handler, e.status, {"error": e.message})
+    except Exception:  # noqa: BLE001
+        logger.exception("auth.py admin-reset-user failed")
+        send_json(handler, 500, {"error": "Internal error while resetting the password."})
+
+
 _ACTIONS = {
     "signup": _handle_signup,
     "login": _handle_login,
     "logout": _handle_logout,
+    "request-password-reset": _handle_request_password_reset,
+    "change-password": _handle_change_password,
+    "admin-list-users": _handle_admin_list_users,
+    "admin-list-reset-requests": _handle_admin_list_reset_requests,
+    "admin-resolve-reset": _handle_admin_resolve_reset,
+    "admin-set-password": _handle_admin_set_password,
+    "admin-reset-user": _handle_admin_reset_user,
 }
 
 
