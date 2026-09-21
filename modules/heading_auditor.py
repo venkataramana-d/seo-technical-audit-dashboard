@@ -217,6 +217,8 @@ def _build_issues(headings, counts, violations, empty_headings, duplicate_headin
             "recommendation": "Add a single, descriptive H1 heading that includes your primary keyword.",
             "impact_score": 9,
             "effort": "Low",
+            # Nothing on the page to point to (the H1 does not exist).
+            "affected": [],
         })
 
     # Multiple H1
@@ -228,6 +230,13 @@ def _build_issues(headings, counts, violations, empty_headings, duplicate_headin
             "recommendation": "Use only one H1 per page to clearly signal the primary topic to search engines.",
             "impact_score": 7,
             "effort": "Low",
+            "affected": [
+                {
+                    "value": h["text"] if h["text"] else "<h1></h1>",
+                    "detail": "H1",
+                }
+                for h in h1_list
+            ][:50],
         })
 
     # H1 too long / too short
@@ -240,6 +249,9 @@ def _build_issues(headings, counts, violations, empty_headings, duplicate_headin
                 "recommendation": "Keep the H1 under 70 characters for optimal display and relevance.",
                 "impact_score": 5,
                 "effort": "Low",
+                "affected": [
+                    {"value": h["text"], "detail": f"{h['length']} chars"}
+                ],
             })
         if 0 < h["length"] < 10:
             issues.append({
@@ -249,6 +261,9 @@ def _build_issues(headings, counts, violations, empty_headings, duplicate_headin
                 "recommendation": "Make the H1 more descriptive (at least 10 characters).",
                 "impact_score": 4,
                 "effort": "Low",
+                "affected": [
+                    {"value": h["text"], "detail": f"{h['length']} chars"}
+                ],
             })
 
     # Skipped heading levels: one issue per violation
@@ -266,6 +281,12 @@ def _build_issues(headings, counts, violations, empty_headings, duplicate_headin
             ),
             "impact_score": 5,
             "effort": "Low",
+            "affected": [
+                {
+                    "value": f"H{v['from_level']} -> H{v['to_level']}",
+                    "detail": "skipped level",
+                }
+            ],
         })
 
     # Empty headings
@@ -277,12 +298,33 @@ def _build_issues(headings, counts, violations, empty_headings, duplicate_headin
             "recommendation": "Remove or fill empty heading tags: they confuse screen readers and crawlers.",
             "impact_score": 6,
             "effort": "Low",
+            "affected": [
+                {
+                    "value": f"<h{h['level']}></h{h['level']}>",
+                    "detail": "empty heading",
+                }
+                for h in empty_headings
+            ][:50],
         })
 
     # Duplicate headings (H1, H2, H3)
     for level in ("h1", "h2", "h3"):
         if level in duplicate_headings:
             dupes = duplicate_headings[level]
+            # duplicate_headings stores lower-cased text; recover the exact
+            # heading text as it appears in the document for display.
+            level_num = int(level[1])
+            affected = []
+            for d in dupes:
+                exact = next(
+                    (
+                        hh["text"]
+                        for hh in headings
+                        if hh["level"] == level_num and hh["text"].lower() == d
+                    ),
+                    d,
+                )
+                affected.append({"value": exact, "detail": f"duplicate {level.upper()}"})
             issues.append({
                 "issue": f"Duplicate {level.upper()} headings found: {', '.join(dupes[:3])}",
                 "category": "Heading Structure",
@@ -290,6 +332,7 @@ def _build_issues(headings, counts, violations, empty_headings, duplicate_headin
                 "recommendation": f"Ensure each {level.upper()} has unique text to avoid confusion for users and crawlers.",
                 "impact_score": 5,
                 "effort": "Medium",
+                "affected": affected[:50],
             })
 
     # No H2 when H1 exists
@@ -301,6 +344,13 @@ def _build_issues(headings, counts, violations, empty_headings, duplicate_headin
             "recommendation": "Add H2 subheadings to break content into logical sections and improve scannability.",
             "impact_score": 4,
             "effort": "Medium",
+            "affected": [
+                {
+                    "value": h["text"] if h["text"] else "<h1></h1>",
+                    "detail": "H1 present, no H2 follows",
+                }
+                for h in h1_list
+            ][:50],
         })
 
     return issues

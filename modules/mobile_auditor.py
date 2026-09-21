@@ -40,6 +40,19 @@ MEDIA_QUERY_RE = re.compile(r"@media\b", re.IGNORECASE)
 # Individual check helpers
 # ---------------------------------------------------------------------------
 
+def _element_selector(tag):
+    """Build a short CSS-ish selector (tag#id.class) so the WHERE data points at
+    the specific element. Uses only attributes already on the parsed tag."""
+    sel = tag.name or "element"
+    tag_id = tag.get("id")
+    if tag_id:
+        sel += f"#{tag_id}"
+    classes = tag.get("class") or []
+    if classes:
+        sel += "." + ".".join(classes[:3])
+    return sel
+
+
 def _check_viewport(soup):
     """Check presence and correctness of viewport meta tag."""
     viewport = soup.find("meta", attrs={"name": re.compile(r"^viewport$", re.I)})
@@ -150,17 +163,22 @@ def _check_media_queries(soup):
 def _check_touch_targets(soup):
     """Warn if interactive elements have inline style dimensions < 44px."""
     small = 0
+    samples = []  # (selector-ish descriptor, offending dimension) for the WHERE data
     for tag in soup.find_all(["button", "a", "input"]):
         style = tag.get("style", "")
+        offending = None
         for match in INLINE_WIDTH_RE.finditer(style):
             if float(match.group(1)) < 44:
-                small += 1
+                offending = f"width:{match.group(1)}px"
                 break
-        else:
+        if offending is None:
             for match in INLINE_HEIGHT_RE.finditer(style):
                 if float(match.group(1)) < 44:
-                    small += 1
+                    offending = f"height:{match.group(1)}px"
                     break
+        if offending is not None:
+            small += 1
+            samples.append((_element_selector(tag), offending))
     return {
         "id": "touch_targets",
         "name": "Touch Target Sizes",
@@ -172,12 +190,14 @@ def _check_touch_targets(soup):
             if small == 0
             else f"{small} interactive element(s) have inline width or height below 44px."
         ),
+        "_small_targets": samples,
     }
 
 
 def _check_font_size(soup):
     """Warn if inline styles set font-size below 12px."""
     small = 0
+    samples = []  # (selector, "font-size:Npx") for the WHERE data
     for tag in soup.find_all(True):
         style = tag.get("style", "")
         for match in FONT_SIZE_PX_RE.finditer(style):
@@ -187,6 +207,7 @@ def _check_font_size(soup):
             size_px = float(match.group(1))
             if 1 <= size_px < 12:
                 small += 1
+                samples.append((_element_selector(tag), f"font-size:{match.group(1)}px"))
     return {
         "id": "font_size",
         "name": "Font Size",
@@ -198,6 +219,7 @@ def _check_font_size(soup):
             if small == 0
             else f"{small} element(s) have inline font-size below 12px, too small for mobile."
         ),
+        "_small_fonts": samples,
     }
 
 
@@ -234,6 +256,8 @@ def _check_form_usability(soup):
     inputs = soup.find_all("input")
     missing_label = 0
     missing_type = 0
+    label_samples = []  # selectors of inputs with no accessible label
+    type_samples = []   # selectors of inputs with no type attribute
 
     for inp in inputs:
         # Skip hidden inputs
@@ -241,6 +265,7 @@ def _check_form_usability(soup):
             continue
         if not inp.get("type"):
             missing_type += 1
+            type_samples.append(_element_selector(inp))
 
         has_label = False
         inp_id = inp.get("id")
@@ -252,6 +277,7 @@ def _check_form_usability(soup):
             has_label = True  # placeholder counts per spec
         if not has_label:
             missing_label += 1
+            label_samples.append(_element_selector(inp))
 
     issues_count = missing_label + missing_type
     return {
@@ -267,17 +293,21 @@ def _check_form_usability(soup):
         ),
         "_missing_label": missing_label,
         "_missing_type": missing_type,
+        "_label_samples": label_samples,
+        "_type_samples": type_samples,
     }
 
 
 def _check_intrusive_popups(soup):
     """Search for popup/modal/overlay patterns in class and id attributes."""
     popup_count = 0
+    samples = []  # detected popup-like elements for the WHERE data
     for tag in soup.find_all(True):
         class_str = " ".join(tag.get("class", []))
         id_str = tag.get("id", "")
         if POPUP_PATTERN.search(class_str) or POPUP_PATTERN.search(id_str):
             popup_count += 1
+            samples.append(_element_selector(tag))
 
     return {
         "id": "intrusive_popups",
@@ -294,6 +324,7 @@ def _check_intrusive_popups(soup):
             )
         ),
         "_popup_count": popup_count,
+        "_popup_samples": samples,
     }
 
 
@@ -327,6 +358,10 @@ def _check_responsive_images(soup):
     imgs = soup.find_all("img")
     total = len(imgs)
     with_srcset = sum(1 for img in imgs if img.get("srcset"))
+    missing_srcset = [
+        (img.get("src") or img.get("data-src") or _element_selector(img))
+        for img in imgs if not img.get("srcset")
+    ]
 
     if total == 0 or with_srcset == total:
         status = "pass"
@@ -345,6 +380,7 @@ def _check_responsive_images(soup):
         "status": status,
         "value": f"{with_srcset}/{total} have srcset",
         "detail": detail,
+        "_missing_srcset": missing_srcset,
     }
 
 
@@ -373,11 +409,13 @@ def _check_content_wider_screen(soup):
     """Search for inline width styles > 1000px on block elements."""
     BLOCK_TAGS = {"div", "section", "article", "main", "aside", "header", "footer", "table"}
     wide_count = 0
+    samples = []  # (selector, "width:Npx") for the WHERE data
     for tag in soup.find_all(BLOCK_TAGS):
         style = tag.get("style", "")
         for match in INLINE_WIDTH_RE.finditer(style):
             if float(match.group(1)) > 1000:
                 wide_count += 1
+                samples.append((_element_selector(tag), f"width:{match.group(1)}px"))
                 break
     return {
         "id": "content_wider_screen",
@@ -390,6 +428,7 @@ def _check_content_wider_screen(soup):
             if wide_count == 0
             else f"{wide_count} block element(s) have inline width > 1000px, may overflow on mobile screens."
         ),
+        "_wide_samples": samples,
     }
 
 
@@ -482,6 +521,7 @@ def _build_issues(checks, summary):
             "recommendation": "Add <meta name='viewport' content='width=device-width, initial-scale=1'> to the <head>.",
             "impact_score": 9,
             "effort": "Low",
+            "affected": [{"value": "viewport", "detail": "not present"}],
         })
     elif vp.get("status") == "warning":
         issues.append({
@@ -491,9 +531,11 @@ def _build_issues(checks, summary):
             "recommendation": "Set viewport content to 'width=device-width, initial-scale=1'.",
             "impact_score": 7,
             "effort": "Low",
+            "affected": [{"value": vp.get("value", ""), "detail": "viewport content (missing width=device-width)"}],
         })
 
-    if check_map.get("prevents_zoom", {}).get("status") == "warning":
+    pz = check_map.get("prevents_zoom", {})
+    if pz.get("status") == "warning":
         issues.append({
             "issue": "Viewport prevents user zoom",
             "category": "Accessibility",
@@ -501,9 +543,15 @@ def _build_issues(checks, summary):
             "recommendation": "Remove user-scalable=no and maximum-scale=1 to allow user zoom.",
             "impact_score": 5,
             "effort": "Low",
+            "affected": [{"value": pz.get("value", ""), "detail": "viewport content (blocks zoom)"}],
         })
 
-    if check_map.get("touch_targets", {}).get("status") == "warning":
+    tt = check_map.get("touch_targets", {})
+    if tt.get("status") == "warning":
+        tt_samples = tt.get("_small_targets", [])
+        tt_affected = [
+            {"value": sel, "detail": dim} for sel, dim in tt_samples[:50]
+        ] or [{"value": tt.get("value", ""), "detail": "small touch target(s)"}]
         issues.append({
             "issue": "Small touch targets detected",
             "category": "Usability",
@@ -511,9 +559,15 @@ def _build_issues(checks, summary):
             "recommendation": "Ensure all interactive elements are at least 44×44px.",
             "impact_score": 5,
             "effort": "Medium",
+            "affected": tt_affected,
         })
 
-    if check_map.get("font_size", {}).get("status") == "warning":
+    fs = check_map.get("font_size", {})
+    if fs.get("status") == "warning":
+        fs_samples = fs.get("_small_fonts", [])
+        fs_affected = [
+            {"value": sel, "detail": size} for sel, size in fs_samples[:50]
+        ] or [{"value": fs.get("value", ""), "detail": "font-size below 12px"}]
         issues.append({
             "issue": "Font sizes below 12px detected",
             "category": "Readability",
@@ -521,6 +575,7 @@ def _build_issues(checks, summary):
             "recommendation": "Use a minimum font size of 12px for mobile readability.",
             "impact_score": 5,
             "effort": "Low",
+            "affected": fs_affected,
         })
 
     # Only flag when there is NO <nav> at all (status "fail"). The "warning" case
@@ -528,7 +583,8 @@ def _build_issues(checks, summary):
     # a nav that collapses purely via CSS media queries, or uses an SVG/aria-label
     # button with no matching class name, is fully mobile-friendly - static HTML
     # simply can't see the responsive CSS.
-    if check_map.get("mobile_nav", {}).get("status") == "fail":
+    nav = check_map.get("mobile_nav", {})
+    if nav.get("status") == "fail":
         issues.append({
             "issue": "No mobile navigation detected",
             "category": "Navigation",
@@ -536,10 +592,19 @@ def _build_issues(checks, summary):
             "recommendation": "Implement a responsive navigation with a hamburger or toggle menu for mobile.",
             "impact_score": 4,
             "effort": "High",
+            "affected": [{"value": nav.get("value", ""), "detail": "no <nav> or mobile toggle found"}],
         })
 
     form_check = check_map.get("form_usability", {})
     if form_check.get("status") == "warning":
+        form_affected = [
+            {"value": sel, "detail": "missing accessible label"}
+            for sel in form_check.get("_label_samples", [])
+        ] + [
+            {"value": sel, "detail": "missing type attribute"}
+            for sel in form_check.get("_type_samples", [])
+        ]
+        form_affected = form_affected[:50] or [{"value": form_check.get("value", ""), "detail": "form input issues"}]
         issues.append({
             "issue": (
                 f"Form inputs missing labels or type attributes "
@@ -551,10 +616,16 @@ def _build_issues(checks, summary):
             "recommendation": "Associate each input with a <label> or aria-label for accessibility.",
             "impact_score": 5,
             "effort": "Medium",
+            "affected": form_affected,
         })
 
-    if check_map.get("intrusive_popups", {}).get("status") == "warning":
-        count = check_map["intrusive_popups"].get("_popup_count", 0)
+    popup = check_map.get("intrusive_popups", {})
+    if popup.get("status") == "warning":
+        count = popup.get("_popup_count", 0)
+        popup_affected = [
+            {"value": sel, "detail": "popup/modal/overlay pattern"}
+            for sel in popup.get("_popup_samples", [])[:50]
+        ] or [{"value": f"{count} element(s)", "detail": "popup/modal/overlay pattern"}]
         issues.append({
             "issue": f"Intrusive popup/modal patterns detected ({count} element(s))",
             "category": "User Experience",
@@ -562,9 +633,15 @@ def _build_issues(checks, summary):
             "recommendation": "Avoid intrusive interstitials that block content on mobile: they can incur a Google penalty.",
             "impact_score": 6,
             "effort": "Medium",
+            "affected": popup_affected,
         })
 
-    if check_map.get("responsive_images", {}).get("status") == "warning":
+    ri = check_map.get("responsive_images", {})
+    if ri.get("status") == "warning":
+        ri_affected = [
+            {"value": src, "detail": "no srcset"}
+            for src in ri.get("_missing_srcset", [])[:50]
+        ] or [{"value": ri.get("value", ""), "detail": "images without srcset"}]
         issues.append({
             "issue": "No responsive images (srcset) detected",
             "category": "Performance",
@@ -572,6 +649,7 @@ def _build_issues(checks, summary):
             "recommendation": "Add srcset attributes to images for responsive image delivery across device sizes.",
             "impact_score": 4,
             "effort": "Medium",
+            "affected": ri_affected,
         })
 
     # NOTE: the "images missing width/height" issue is intentionally NOT emitted
@@ -582,7 +660,11 @@ def _build_issues(checks, summary):
     # `image_dimensions` CHECK still contributes to the mobile checklist status;
     # only the duplicate all_issues row is dropped.
 
-    if check_map.get("content_wider_screen", {}).get("status") == "warning":
+    cws = check_map.get("content_wider_screen", {})
+    if cws.get("status") == "warning":
+        cws_affected = [
+            {"value": sel, "detail": dim} for sel, dim in cws.get("_wide_samples", [])[:50]
+        ] or [{"value": cws.get("value", ""), "detail": "inline width > 1000px"}]
         issues.append({
             "issue": "Content wider than screen detected",
             "category": "Layout",
@@ -590,6 +672,7 @@ def _build_issues(checks, summary):
             "recommendation": "Remove or replace fixed pixel widths > 1000px with responsive CSS units.",
             "impact_score": 6,
             "effort": "Medium",
+            "affected": cws_affected,
         })
 
     return issues

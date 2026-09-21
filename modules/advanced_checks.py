@@ -30,6 +30,7 @@ def analyze_http_headers(http_headers: dict, url: str) -> dict:
             "recommendation": "Remove 'noindex' from the X-Robots-Tag HTTP header if this page should be indexed by search engines.",
             "impact_score": 10,
             "effort": "Low",
+            "affected": [{"value": x_robots_tag, "detail": "X-Robots-Tag header contains 'noindex'"}],
         })
 
     # Cache-Control
@@ -44,6 +45,7 @@ def analyze_http_headers(http_headers: dict, url: str) -> dict:
             "recommendation": "Add a Cache-Control header (e.g. 'public, max-age=31536000') to improve repeat-visit performance and reduce server load.",
             "impact_score": 5,
             "effort": "Medium",
+            "affected": [{"value": "Cache-Control", "detail": "not present"}],
         })
 
     # Content-Encoding / Compression
@@ -62,6 +64,7 @@ def analyze_http_headers(http_headers: dict, url: str) -> dict:
             "recommendation": "Enable gzip or Brotli compression on your server/CDN to reduce page transfer size and improve load times.",
             "impact_score": 6,
             "effort": "Low",
+            "affected": [{"value": "Content-Encoding: " + content_encoding, "detail": "no gzip/Brotli/deflate/zstd compression detected"}],
         })
 
     # Server
@@ -79,6 +82,7 @@ def analyze_http_headers(http_headers: dict, url: str) -> dict:
             "recommendation": "Add 'Strict-Transport-Security: max-age=31536000; includeSubDomains' to enforce HTTPS connections. This is a security best practice and minor trust signal, not a direct Google ranking factor.",
             "impact_score": 4,
             "effort": "Low",
+            "affected": [{"value": "Strict-Transport-Security", "detail": "not present"}],
         })
 
     # CSP
@@ -96,6 +100,7 @@ def analyze_http_headers(http_headers: dict, url: str) -> dict:
             "recommendation": "Add 'X-Frame-Options: SAMEORIGIN' to prevent clickjacking attacks and protect user trust.",
             "impact_score": 4,
             "effort": "Low",
+            "affected": [{"value": "X-Frame-Options", "detail": "not present"}],
         })
 
     # X-Content-Type-Options
@@ -109,6 +114,7 @@ def analyze_http_headers(http_headers: dict, url: str) -> dict:
             "recommendation": "Add 'X-Content-Type-Options: nosniff' to prevent MIME-type sniffing vulnerabilities.",
             "impact_score": 3,
             "effort": "Low",
+            "affected": [{"value": "X-Content-Type-Options", "detail": "not present"}],
         })
 
     # Referrer-Policy
@@ -181,6 +187,7 @@ def analyze_technical_seo(soup, url: str, page_size_bytes: int, response_time: f
             "recommendation": "Reduce page size below 500 KB by compressing images, minifying HTML/CSS/JS, and removing unnecessary code.",
             "impact_score": 6,
             "effort": "Medium",
+            "affected": [{"value": f"{page_size_kb} KB", "detail": "exceeds the 500 KB threshold"}],
         })
 
     # ── AMP ───────────────────────────────────────────────────────────────
@@ -238,6 +245,10 @@ def analyze_technical_seo(soup, url: str, page_size_bytes: int, response_time: f
             "recommendation": "Avoid iframes where possible: they can slow page load, cause CLS, and may not be crawled by search engines.",
             "impact_score": 3,
             "effort": "Medium",
+            "affected": [
+                {"value": (f.get("src") or "(no src)"), "detail": "iframe on page"}
+                for f in iframes
+            ][:50],
         })
 
     # ── DOM size ─────────────────────────────────────────────────────────
@@ -257,6 +268,7 @@ def analyze_technical_seo(soup, url: str, page_size_bytes: int, response_time: f
             "recommendation": "Reduce DOM size below 1500 elements. A bloated DOM slows rendering, increases memory usage, and harms Core Web Vitals.",
             "impact_score": 5,
             "effort": "High",
+            "affected": [{"value": f"{dom_elements} elements", "detail": "exceeds the 1500-element threshold"}],
         })
 
     # ── Mixed content ─────────────────────────────────────────────────────
@@ -269,6 +281,7 @@ def analyze_technical_seo(soup, url: str, page_size_bytes: int, response_time: f
     # http:// - a false positive. Only real resource rels count.
     _RESOURCE_LINK_RELS = {"stylesheet", "preload", "modulepreload", "prefetch", "import"}
     mixed_content_count = 0
+    mixed_content_urls = []
     if is_https and soup:
         for tag in soup.find_all(["img", "script", "link", "audio", "video", "source", "iframe"]):
             if tag.name == "link":
@@ -279,6 +292,7 @@ def analyze_technical_seo(soup, url: str, page_size_bytes: int, response_time: f
                 val = tag.get(attr, "") or ""
                 if val.startswith("http://"):
                     mixed_content_count += 1
+                    mixed_content_urls.append({"value": val, "detail": f"insecure http:// resource on <{tag.name}>"})
                     break
 
     has_mixed_content = mixed_content_count > 0
@@ -290,6 +304,7 @@ def analyze_technical_seo(soup, url: str, page_size_bytes: int, response_time: f
             "recommendation": "Replace all http:// resource URLs with https:// equivalents. Mixed content breaks secure connections and triggers browser warnings.",
             "impact_score": 10,
             "effort": "Medium",
+            "affected": mixed_content_urls[:50],
         })
 
     # ── Resource hints ────────────────────────────────────────────────────
@@ -326,6 +341,11 @@ def analyze_technical_seo(soup, url: str, page_size_bytes: int, response_time: f
             "recommendation": "Add <link rel='preconnect'> or <link rel='dns-prefetch'> for your most critical external script domains (e.g. analytics, fonts). Focus on domains you control or that block rendering.",
             "impact_score": 3,
             "effort": "Low",
+            "affected": [
+                {"value": (s.get("src") or ""), "detail": "external script with no preconnect/dns-prefetch hint"}
+                for s in all_scripts
+                if (s.get("src") or "").startswith("http")
+            ][:50],
         })
 
     # ── Print stylesheet ──────────────────────────────────────────────────
@@ -359,6 +379,7 @@ def analyze_technical_seo(soup, url: str, page_size_bytes: int, response_time: f
             "recommendation": "Server response time is well above the 200ms target. Investigate server-side rendering time and database queries, and add server-side caching or a CDN. Confirm with a PageSpeed Insights run (single-request timing is approximate).",
             "impact_score": 8,
             "effort": "High",
+            "affected": [{"value": f"~{ttfb_ms}ms", "detail": "estimated TTFB, well above the 200ms target (>1200ms)"}],
         })
     elif ttfb_ms > 600:
         issues.append({
@@ -368,6 +389,7 @@ def analyze_technical_seo(soup, url: str, page_size_bytes: int, response_time: f
             "recommendation": "Aim for a server response under 200ms. Consider server-side caching, a CDN, or optimizing backend processing. Single-request timing is approximate; confirm with PageSpeed Insights.",
             "impact_score": 5,
             "effort": "Medium",
+            "affected": [{"value": f"~{ttfb_ms}ms", "detail": "estimated TTFB, above the 200ms target (>600ms)"}],
         })
 
     # LCP heuristic based on page size + image count
@@ -478,6 +500,7 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
             "recommendation": 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> to make the page mobile-friendly.',
             "impact_score": 9,
             "effort": "Low",
+            "affected": [{"value": "viewport", "detail": "not present"}],
         })
     elif "width=device-width" not in viewport_content.lower():
         issues.append({
@@ -487,6 +510,7 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
             "recommendation": 'Update viewport to content="width=device-width, initial-scale=1" for proper mobile rendering.',
             "impact_score": 7,
             "effort": "Low",
+            "affected": [{"value": viewport_content, "detail": "viewport content is missing 'width=device-width'"}],
         })
 
     # ── 2. Charset ────────────────────────────────────────────────────────
@@ -512,6 +536,7 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
             "recommendation": 'Declare the charset via <meta charset="UTF-8"> (first element in <head>) or the Content-Type response header.',
             "impact_score": 5,
             "effort": "Low",
+            "affected": [{"value": "charset", "detail": "not present in <meta> or Content-Type header"}],
         })
 
     # ── 3. HTML lang attribute ────────────────────────────────────────────
@@ -526,6 +551,7 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
             "recommendation": 'Add lang="en" (or the correct language code) to the <html> element.',
             "impact_score": 4,
             "effort": "Low",
+            "affected": [{"value": "lang", "detail": "not present on <html> tag"}],
         })
 
     # ── 4. Hreflang ───────────────────────────────────────────────────────
@@ -544,6 +570,12 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
             "recommendation": 'Add <link rel="alternate" hreflang="x-default" href="..."> as a fallback for unmatched languages.',
             "impact_score": 5,
             "effort": "Low",
+            "affected": [{
+                "value": "x-default",
+                "detail": "not present; defined hreflang values: " + ", ".join(
+                    h["lang"] for h in hreflang_list if h["lang"]
+                ),
+            }],
         })
 
     # ── 5. Twitter Card tags ──────────────────────────────────────────────
@@ -571,6 +603,7 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
             "recommendation": f"Add missing tags: {', '.join(missing_twitter)}. Twitter card tags control appearance when shared on X/Twitter.",
             "impact_score": 4,
             "effort": "Low",
+            "affected": [{"value": t, "detail": "not present"} for t in missing_twitter][:50],
         })
 
     # ── 6. Schema / Structured data ───────────────────────────────────────
@@ -611,6 +644,10 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
             "recommendation": "Fix JSON syntax errors in your structured data. Use Google's Rich Results Test to validate.",
             "impact_score": 7,
             "effort": "Medium",
+            "affected": [
+                {"value": "application/ld+json script", "detail": err}
+                for err in schema_errors
+            ][:50],
         })
 
     if not schema_types_found:
@@ -621,6 +658,7 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
             "recommendation": "Consider adding JSON-LD schema markup (Article, FAQPage, BreadcrumbList) if applicable. Not all page types require structured data.",
             "impact_score": 4,
             "effort": "Medium",
+            "affected": [{"value": "JSON-LD structured data", "detail": "not present"}],
         })
     else:
         has_breadcrumb = "BreadcrumbList" in schema_types_found
@@ -632,6 +670,10 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
                 "recommendation": "Add BreadcrumbList schema to display breadcrumb rich results in Google.",
                 "impact_score": 3,
                 "effort": "Medium",
+                "affected": [{
+                    "value": "BreadcrumbList",
+                    "detail": "not present; detected schema types: " + ", ".join(schema_types_found),
+                }],
             })
 
     # ── 7. Favicon ────────────────────────────────────────────────────────
@@ -652,6 +694,7 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
             "recommendation": 'Declare a favicon with <link rel="icon" href="/favicon.ico">. If you already serve /favicon.ico at the root, browsers will still use it, but an explicit tag lets you control the format and size.',
             "impact_score": 2,
             "effort": "Low",
+            "affected": [{"value": 'link rel="icon"', "detail": "not present"}],
         })
 
     # ── 8. SERP Preview data ──────────────────────────────────────────────

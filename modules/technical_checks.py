@@ -94,7 +94,8 @@ def check_robots_txt(url: str) -> dict:
     if r.status_code != 200:
         issues.append(_issue(f"robots.txt Returned HTTP {r.status_code}", "Site Health", "Warning",
             "Ensure robots.txt returns a 200 status so crawlers can read your crawl rules.",
-            impact_score=4, effort="Low"))
+            impact_score=4, effort="Low",
+            affected=[{"value": robots_url, "detail": f"Returned HTTP {r.status_code}"}]))
         return {"robots_url": robots_url, "exists": False, "allowed": None, "issues": issues}
 
     rp = RobotFileParser()
@@ -107,7 +108,8 @@ def check_robots_txt(url: str) -> dict:
     if not allowed or not googlebot_allowed:
         issues.append(_issue("Page Blocked by robots.txt", "Site Health", "Critical",
             "Update robots.txt Disallow rules if this page should be crawled and indexed.",
-            impact_score=10, effort="Low"))
+            impact_score=10, effort="Low",
+            affected=[{"value": robots_url, "detail": f"Disallows: {url}"}]))
 
     return {
         "robots_url": robots_url, "exists": True, "allowed": allowed,
@@ -152,7 +154,11 @@ def check_sitemap(url: str) -> dict:
         if not fetch_failed:
             issues.append(_issue("Sitemap Not Found", "Site Health", "Warning",
                 "Add a sitemap.xml (or sitemap_index.xml) at the site root and submit it in Search Console to aid discovery.",
-                impact_score=4, effort="Low"))
+                impact_score=4, effort="Low",
+                affected=[
+                    {"value": sitemap_url, "detail": "No sitemap at this location"},
+                    {"value": f"{root_base}/sitemap_index.xml", "detail": "No sitemap at this location"},
+                ]))
         return {"sitemap_url": sitemap_url, "exists": False, "url_count": 0, "issues": issues}
 
     urls = []
@@ -176,18 +182,28 @@ def check_sitemap(url: str) -> dict:
     if malformed:
         issues.append(_issue("Sitemap XML Is Malformed", "Site Health", "Warning",
             "Fix XML syntax errors in sitemap.xml so search engines can parse it reliably.",
-            impact_score=5, effort="Medium"))
+            impact_score=5, effort="Medium",
+            affected=[{"value": sitemap_url, "detail": "XML parse error (recovered via lenient parser)"}]))
 
     duplicates = len(urls) - len(set(urls))
     if duplicates:
+        seen = set()
+        dup_values = []
+        for u in urls:
+            if u in seen and u not in dup_values:
+                dup_values.append(u)
+            seen.add(u)
         issues.append(_issue(f"{duplicates} Duplicate URLs in Sitemap", "Site Health", "Low",
             "Remove duplicate <loc> entries from the sitemap.",
-            impact_score=2, effort="Low"))
+            impact_score=2, effort="Low",
+            affected=[{"value": u, "detail": "Appears more than once in sitemap"}
+                      for u in dup_values[:50]]))
 
     if len(urls) > 50000:
         issues.append(_issue("Sitemap Exceeds 50,000 URL Limit", "Site Health", "High",
             "Split the sitemap into multiple files referenced by a sitemap index.",
-            impact_score=6, effort="Medium"))
+            impact_score=6, effort="Medium",
+            affected=[{"value": sitemap_url, "detail": f"Contains {len(urls):,} URLs (limit 50,000)"}]))
 
     return {
         "sitemap_url": sitemap_url, "exists": True, "url_count": len(urls),
@@ -224,9 +240,11 @@ def check_domain_age(url: str) -> dict:
 
         issues = []
         if age_years < 0.5:
+            created_str = created.strftime("%Y-%m-%d") if hasattr(created, "strftime") else str(created)
             issues.append(_issue(f"Very New Domain ({age_years} years old)", "Site Health", "Low",
                 "New domains take time to build trust with search engines: this is informational, not a fix.",
-                impact_score=2, effort="Low"))
+                impact_score=2, effort="Low",
+                affected=[{"value": domain, "detail": f"Created {created_str} ({age_years} years / {age_days} days old)"}]))
 
         return {
             "available": True, "age_years": age_years, "age_days": age_days,
@@ -247,7 +265,8 @@ def check_ssl(url: str) -> dict:
     if not url.startswith("https"):
         issues.append(_issue("Page Not Served Over HTTPS", "Site Health", "Critical",
             "Migrate to HTTPS and obtain a valid SSL certificate.",
-            impact_score=10, effort="High"))
+            impact_score=10, effort="High",
+            affected=[{"value": url, "detail": "Served over plain HTTP"}]))
         return {"valid": False, "issues": issues}
 
     domain = urlparse(url).netloc.split(":")[0]
@@ -260,14 +279,17 @@ def check_ssl(url: str) -> dict:
         expiry = datetime.strptime(expiry_raw, "%b %d %H:%M:%S %Y %Z") if expiry_raw else None
         days_left = (expiry - datetime.now(timezone.utc).replace(tzinfo=None)).days if expiry else None
 
+        expiry_str = expiry.strftime("%Y-%m-%d") if expiry else expiry_raw
         if days_left is not None and days_left < 14:
             issues.append(_issue(f"SSL Certificate Expires in {days_left} Days", "Site Health", "Critical",
                 "Renew the SSL certificate immediately to avoid a browser security warning.",
-                impact_score=10, effort="Low"))
+                impact_score=10, effort="Low",
+                affected=[{"value": domain, "detail": f"Certificate expires {expiry_str} ({days_left} days left)"}]))
         elif days_left is not None and days_left < 30:
             issues.append(_issue(f"SSL Certificate Expires in {days_left} Days", "Site Health", "Warning",
                 "Renew the SSL certificate soon.",
-                impact_score=5, effort="Low"))
+                impact_score=5, effort="Low",
+                affected=[{"value": domain, "detail": f"Certificate expires {expiry_str} ({days_left} days left)"}]))
 
         return {
             "valid": True, "expiry": expiry.strftime("%Y-%m-%d") if expiry else None,
@@ -276,7 +298,8 @@ def check_ssl(url: str) -> dict:
     except ssl.SSLCertVerificationError as exc:
         issues.append(_issue("SSL Certificate Invalid", "Site Health", "Critical",
             f"Fix the SSL certificate: verification failed: {exc}",
-            impact_score=10, effort="High"))
+            impact_score=10, effort="High",
+            affected=[{"value": domain, "detail": f"Verification failed: {exc}"}]))
         return {"valid": False, "issues": issues}
     except (OSError, ValueError) as exc:
         logger.warning("check_ssl failed for %s: %s", domain, exc)
@@ -316,7 +339,8 @@ def check_https_enforcement(url: str) -> dict:
             "HTTP Does Not Redirect to HTTPS", "Site Health", "Critical",
             f"Add a server-level redirect so http://{parsed.netloc} forces HTTPS: "
             "visitors and crawlers can currently reach an insecure version of this site.",
-            impact_score=9, effort="Low")],
+            impact_score=9, effort="Low",
+            affected=[{"value": http_url, "detail": f"Resolves to {final_scheme}://{urlparse(r.url).netloc} (not HTTPS)"}])],
     }
 
 
@@ -394,11 +418,13 @@ def check_readability(text: str) -> dict:
     if fk_grade > 14:
         issues.append(_issue(f"Difficult Readability (Grade {fk_grade})", "Content", "Warning",
             "Simplify sentence structure and vocabulary to lower the reading grade level.",
-            impact_score=4, effort="Medium"))
+            impact_score=4, effort="Medium",
+            affected=[{"value": f"Flesch-Kincaid grade {fk_grade}", "detail": f"Reading ease {ease}"}]))
     elif fk_grade > 10:
         issues.append(_issue(f"Above-Average Reading Difficulty (Grade {fk_grade})", "Content", "Low",
             "Consider shorter sentences to make content accessible to a broader audience.",
-            impact_score=2, effort="Medium"))
+            impact_score=2, effort="Medium",
+            affected=[{"value": f"Flesch-Kincaid grade {fk_grade}", "detail": f"Reading ease {ease}"}]))
 
     return {"available": True, "fk_grade": fk_grade, "reading_ease": ease, "issues": issues}
 
@@ -458,7 +484,8 @@ def check_content_freshness(http_headers: dict, soup) -> dict:
     if age_days > 730:
         issues.append(_issue(f"Content Is ~{age_days // 30} Months Old", "Content", "Warning",
             "Refresh this content: search engines favour recently updated pages for time-sensitive queries.",
-            impact_score=4, effort="Medium"))
+            impact_score=4, effort="Medium",
+            affected=[{"value": str(raw_date), "detail": f"Last modified ~{age_days} days ago"}]))
 
     return {"available": True, "raw_date": raw_date, "age_days": age_days, "issues": issues}
 
@@ -490,7 +517,8 @@ def check_canonical_loop(url: str, soup) -> dict:
             return {"chain": visited + [canon_url], "issues": [_issue(
                 "Canonical Loop Detected", "Canonical", "Critical",
                 f"Break the canonical loop, chain: {chain}",
-                impact_score=8, effort="Medium")]}
+                impact_score=8, effort="Medium",
+                affected=[{"value": chain, "detail": f"Loops back to {canon_url}"}])]}
 
         visited.append(canon_url)
         try:
@@ -515,7 +543,8 @@ def check_canonical_loop(url: str, soup) -> dict:
         return {"chain": visited, "issues": [_issue(
             f"Canonical Chain ({len(visited)} Hops)", "Canonical", "Warning",
             f"Point the canonical tag directly at the final URL to avoid a redirect chain: {chain}",
-            impact_score=5, effort="Medium")]}
+            impact_score=5, effort="Medium",
+            affected=[{"value": chain, "detail": f"{len(visited)} canonical hops"}])]}
 
     return {"chain": visited, "issues": []}
 
@@ -561,7 +590,8 @@ def check_www_redirect(url: str) -> dict:
         return {"consolidated": False, "issues": [_issue(
             f"{alt_url} Resolves Independently", "Site Health", "Warning",
             "Redirect the www/non-www variant to a single canonical host to avoid duplicate-content risk.",
-            impact_score=5, effort="Medium")]}
+            impact_score=5, effort="Medium",
+            affected=[{"value": alt_domain, "detail": f"Serves content independently of {domain} instead of redirecting to it"}])]}
     return {"consolidated": True, "issues": []}
 
 
@@ -587,7 +617,8 @@ def check_http2(url: str) -> dict:
         if not is_modern:
             issues.append(_issue(f"HTTP/2 Not Detected ({version})", "Site Health", "Low",
                 "Upgrade the server/CDN to support HTTP/2 or HTTP/3 for faster multiplexed page loads.",
-                impact_score=3, effort="Medium"))
+                impact_score=3, effort="Medium",
+                affected=[{"value": url, "detail": f"Negotiated {version}"}]))
         return {"available": True, "http_version": version, "issues": issues}
     except Exception as exc:
         logger.warning("check_http2 failed for %s: %s", url, exc)

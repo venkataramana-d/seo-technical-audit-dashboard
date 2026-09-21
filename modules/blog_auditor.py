@@ -53,6 +53,7 @@ def audit_blog_page(soup, url):
                 "category": "Blog Content",
                 "severity": severity_map.get(element_name, "Low"),
                 "recommendation": f"Add '{element_name}' to improve content quality and E-E-A-T signals.",
+                "affected": [{"value": element_name, "detail": "expected on this page, not found"}],
             })
 
     # Word count: reuse raw_text from above
@@ -66,6 +67,7 @@ def audit_blog_page(soup, url):
             "category": "Blog Content",
             "severity": "High",
             "recommendation": f"Expand content to at least {MIN_BLOG_WORDS} words for competitive blog rankings.",
+            "affected": [{"value": str(word_count), "detail": f"words (below {MIN_BLOG_WORDS} minimum)"}],
         })
     elif word_count < GOOD_BLOG_WORDS:
         issues.append({
@@ -73,6 +75,7 @@ def audit_blog_page(soup, url):
             "category": "Blog Content",
             "severity": "Warning",
             "recommendation": f"Aim for {GOOD_BLOG_WORDS}+ words to outperform competitors in search.",
+            "affected": [{"value": str(word_count), "detail": f"words (below {GOOD_BLOG_WORDS} recommended)"}],
         })
 
     # Schema
@@ -89,6 +92,7 @@ def audit_blog_page(soup, url):
             "recommendation": "Add BlogPosting schema (JSON-LD) to enhance rich snippets.",
             "impact_score": 5,
             "effort": "Medium",
+            "affected": [{"value": "Article", "detail": "not present (Article/BlogPosting/NewsArticle)"}],
         })
 
     # Open Graph
@@ -102,6 +106,7 @@ def audit_blog_page(soup, url):
             "category": "Social SEO",
             "severity": "Medium",
             "recommendation": "Add all og: meta tags for better social media sharing previews.",
+            "affected": [{"value": tag, "detail": "not present"} for tag in missing_og[:50]],
         })
 
     # Readability
@@ -116,6 +121,7 @@ def audit_blog_page(soup, url):
             "category": "Readability",
             "severity": "Low",
             "recommendation": "Break long sentences into shorter ones (aim for under 20 words per sentence).",
+            "affected": [{"value": str(avg_sentence_len), "detail": "avg words per sentence (over 25)"}],
         })
 
     elements_score = round(sum(1 for v in elements_found.values() if v) / len(elements_found) * 100, 1)
