@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAudit } from "@/lib/state/AuditContext";
 import { AffectedList, Card, EmptyState, PageHeader, ScoreBadge, SeverityBadge } from "@/components/ui";
@@ -226,6 +226,19 @@ export default function ExplorerPage() {
   // pane is dismissed). Holds the derived Row so its stats/issues render without
   // re-deriving; row.r is the underlying AuditResult for "Open full detail".
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
+  // Scroll the detail pane into view when a row is selected - the pane renders
+  // below the (paginated) table, so on a tall list it would otherwise open far
+  // below the fold and look like the click did nothing. (scrollIntoView is not
+  // setState, so this effect is fine under react-hooks/set-state-in-effect.)
+  const paneRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (selectedRow) {
+      // Instant (not smooth): smooth scroll is a no-op in some rendering
+      // contexts, which left the pane below the fold and made a row click look
+      // like nothing happened.
+      paneRef.current?.scrollIntoView({ block: "start" });
+    }
+  }, [selectedRow]);
 
   // Enrich every result once. Original index is captured so row-click can call
   // setSelectedUrlIndex against the unfiltered results array.
@@ -757,11 +770,13 @@ export default function ExplorerPage() {
       {/* Screaming-Frog-style lower detail pane: preview the selected URL's
           issues without leaving the grid. */}
       {selectedRow ? (
-        <DetailPane
-          row={selectedRow}
-          onClose={() => setSelectedRow(null)}
-          onOpenFull={() => openDetail(selectedRow)}
-        />
+        <div ref={paneRef} className="scroll-mt-20">
+          <DetailPane
+            row={selectedRow}
+            onClose={() => setSelectedRow(null)}
+            onOpenFull={() => openDetail(selectedRow)}
+          />
+        </div>
       ) : null}
     </div>
   );
