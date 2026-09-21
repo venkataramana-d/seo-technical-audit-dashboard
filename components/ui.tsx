@@ -95,7 +95,7 @@ export function Modal({
       >
         <div className="mb-3 flex items-start justify-between gap-3">
           {title ? (
-            <h3 className="text-base font-semibold tracking-tight text-[var(--seo-heading)]">{title}</h3>
+            <h3 className="min-w-0 break-words [overflow-wrap:anywhere] text-base font-semibold tracking-tight text-[var(--seo-heading)]">{title}</h3>
           ) : (
             <span />
           )}
@@ -652,15 +652,18 @@ export function IssueExplanationGrid({
       ) : null}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {fields.map((f, i) => (
-          <div key={i}>
+          // min-w-0 lets the grid track shrink; break-words + overflow-wrap:anywhere
+          // wraps long unbroken strings (e.g. URL-encoded image filenames) so they
+          // can't overflow and overlap the neighbouring column.
+          <div key={i} className="min-w-0">
             <h5 className="text-xs font-semibold uppercase tracking-wide text-[var(--seo-muted)]">{f.label}</h5>
-            <p className="text-[var(--seo-text)]">{f.value}</p>
+            <p className="break-words [overflow-wrap:anywhere] text-[var(--seo-text)]">{f.value}</p>
           </div>
         ))}
       </div>
       <div>
         <h5 className="text-xs font-semibold uppercase tracking-wide text-[var(--seo-muted)]">Recommended Fix</h5>
-        <p className="text-[var(--seo-text)]">{recommendedFix}</p>
+        <p className="break-words [overflow-wrap:anywhere] text-[var(--seo-text)]">{recommendedFix}</p>
         {htmlExample ? (
           <pre className="mt-1 overflow-x-auto rounded-lg bg-[var(--seo-card-hover)] p-2 text-xs text-[var(--seo-subheading)]">
             {htmlExample}
