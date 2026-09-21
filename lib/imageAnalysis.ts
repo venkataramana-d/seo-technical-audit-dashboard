@@ -200,6 +200,65 @@ export function explainImageIssue(issue: string, img: ImageEntry): ImageIssueExp
   }
 }
 
+// Maps an aggregated image-issue title (e.g. "Missing alt text on 3 image(s)")
+// to the per-image `issues` label that identifies the offending images.
+const IMAGE_ISSUE_LABELS: { re: RegExp; label: string; detail: string }[] = [
+  { re: /^missing alt text/i, label: "Missing alt text", detail: "no alt attribute" },
+  { re: /^empty alt text/i, label: "Empty alt text", detail: 'alt=""' },
+  { re: /^generic alt text/i, label: "Generic alt text", detail: "generic alt text" },
+  { re: /^keyword-stuffed alt/i, label: "Keyword-stuffed alt text", detail: "keyword-stuffed alt" },
+  { re: /missing lazy loading/i, label: "Missing lazy loading", detail: "no loading=\"lazy\"" },
+  { re: /missing width\/height/i, label: "Missing width/height dimensions", detail: "no width/height" },
+  { re: /converted to webp/i, label: "Could be converted to WebP/AVIF", detail: "legacy format" },
+  { re: /poor filename/i, label: "Poor filename convention", detail: "poor filename" },
+  { re: /fail to load/i, label: "Broken image (does not load)", detail: "does not load" },
+  { re: /larger than 200kb|large file size/i, label: "Large file size (> 200KB)", detail: "over 200KB" },
+];
+
+/**
+ * Derive the exact offending images for an aggregated image-issue title, read
+ * straight from the per-image `image_detail.images` list. This lets the Issues
+ * tab point at the specific image src(s) behind a "... on N image(s)" issue even
+ * for audits crawled before the backend started attaching `affected`. Returns []
+ * for non-image issues, so callers can safely try it on any issue.
+ */
+export function deriveImageAffected(
+  issueTitle: string,
+  images: ImageEntry[],
+  cap = 200,
+): { value: string; detail: string }[] {
+  if (!issueTitle || images.length === 0) return [];
+
+  // "Duplicate alt text" has no single per-image label; find images that share
+  // a non-empty alt value.
+  if (/^duplicate alt text/i.test(issueTitle)) {
+    const counts = new Map<string, number>();
+    for (const img of images) {
+      const alt = (img.alt_text || "").trim();
+      if (alt) counts.set(alt, (counts.get(alt) || 0) + 1);
+    }
+    return images
+      .filter((img) => {
+        const alt = (img.alt_text || "").trim();
+        return alt.length > 0 && (counts.get(alt) || 0) > 1;
+      })
+      .slice(0, cap)
+      .map((img) => ({ value: img.url, detail: `alt="${(img.alt_text || "").trim()}"` }));
+  }
+
+  const match = IMAGE_ISSUE_LABELS.find((m) => m.re.test(issueTitle));
+  if (!match) return [];
+  return images
+    .filter(
+      (img) =>
+        img.issues.includes(match.label) ||
+        // Broken images are flagged via is_broken even when the label is absent.
+        (match.label === "Broken image (does not load)" && img.is_broken === true),
+    )
+    .slice(0, cap)
+    .map((img) => ({ value: img.url, detail: match.detail }));
+}
+
 export function imagePriorityScore(img: ImageEntry): number {
   let score = 0;
   if (img.is_broken) score += 50;

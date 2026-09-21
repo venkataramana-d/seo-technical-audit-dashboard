@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Card, IssueExplanationGrid, locateAndHighlight, MetricCard, Modal, TabBar } from "@/components/ui";
+import { AffectedList, Card, IssueExplanationGrid, locateAndHighlight, MetricCard, Modal, TabBar } from "@/components/ui";
+import type { AffectedElement } from "@/lib/types";
 import { downloadCsv } from "@/lib/format";
 import {
   anchorTextDistribution,
@@ -120,6 +121,51 @@ export function LinksView({
     [allLinks],
   );
   const summary = useMemo(() => buildExecutiveSummary(allLinks, orphan.length), [allLinks, orphan.length]);
+
+  // The exact links/pages behind each Executive-Summary fix, so the summary
+  // points at "where" (mirrors the per-issue AffectedList used elsewhere) rather
+  // than only counting. Values are URLs, which AffectedList renders as links.
+  const weakLinks = useMemo(() => allLinks.filter((l) => l.is_weak_anchor), [allLinks]);
+  const brokenLinks = useMemo(() => allLinks.filter((l) => l.is_broken), [allLinks]);
+  const redirectLinks = useMemo(() => allLinks.filter((l) => l.is_redirect), [allLinks]);
+  const asAffected = (links: LinkEntry[], detail: (l: LinkEntry) => string): AffectedElement[] =>
+    links.slice(0, 200).map((l) => ({ value: l.url, detail: detail(l) }));
+
+  const topPriorityItems = useMemo<{ label: string; affected: AffectedElement[] }[]>(() => {
+    const items: { label: string; affected: AffectedElement[] }[] = [];
+    if (brokenLinks.length > 0)
+      items.push({
+        label: `Fix ${brokenLinks.length} broken link(s): direct crawl and user-experience impact.`,
+        affected: asAffected(brokenLinks, (l) => `${l.status_code ?? "broken"} · ${l.anchor_text || "no anchor"}`),
+      });
+    if (redirectLinks.length > 0)
+      items.push({
+        label: `Update ${redirectLinks.length} redirecting link(s) to point straight to the final URL.`,
+        affected: asAffected(redirectLinks, (l) => `${l.status_code ?? "redirect"} · ${l.anchor_text || "no anchor"}`),
+      });
+    return items;
+  }, [brokenLinks, redirectLinks]);
+
+  const quickWinItems = useMemo<{ label: string; affected: AffectedElement[] }[]>(() => {
+    const items: { label: string; affected: AffectedElement[] }[] = [];
+    if (weakLinks.length > 0)
+      items.push({
+        label: `Rewrite ${weakLinks.length} weak anchor text link(s) (e.g. "click here") with descriptive text.`,
+        affected: asAffected(weakLinks, (l) => `anchor: "${l.anchor_text || ""}"`),
+      });
+    if (gaps.length > 0)
+      items.push({
+        label: `Add rel="noopener noreferrer" to ${gaps.length} link(s) opening in a new tab.`,
+        affected: asAffected(gaps, (l) => `target="_blank" · ${l.anchor_text || "no anchor"}`),
+      });
+    if (orphan.length > 0)
+      items.push({
+        label: `Add internal links to ${orphan.length} orphan page(s) with zero inbound links.`,
+        affected: orphan.slice(0, 200).map((url) => ({ value: url, detail: "0 inbound links" })),
+      });
+    return items;
+  }, [weakLinks, gaps, orphan]);
+
   const homepageUrl = results[0]?.url;
   const [activeGap, setActiveGap] = useState<(LinkEntry & { __kind: "internal" | "external" }) | null>(null);
 
@@ -173,12 +219,15 @@ export function LinksView({
                 <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--seo-muted)]">
                   Top Priority Fixes
                 </h4>
-                {summary.topPriorityFixes.length ? (
-                  <ul className="list-inside list-disc text-sm text-[var(--seo-text)]">
-                    {summary.topPriorityFixes.map((f, i) => (
-                      <li key={i}>{f}</li>
+                {topPriorityItems.length ? (
+                  <div className="flex flex-col gap-3">
+                    {topPriorityItems.map((f, i) => (
+                      <div key={i}>
+                        <p className="text-sm text-[var(--seo-text)]">{f.label}</p>
+                        <AffectedList affected={f.affected} />
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 ) : (
                   <p className="text-sm text-[var(--seo-muted)]">No broken or redirecting links found.</p>
                 )}
@@ -187,12 +236,15 @@ export function LinksView({
                 <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--seo-muted)]">
                   Quick Wins
                 </h4>
-                {summary.quickWins.length ? (
-                  <ul className="list-inside list-disc text-sm text-[var(--seo-text)]">
-                    {summary.quickWins.map((f, i) => (
-                      <li key={i}>{f}</li>
+                {quickWinItems.length ? (
+                  <div className="flex flex-col gap-3">
+                    {quickWinItems.map((f, i) => (
+                      <div key={i}>
+                        <p className="text-sm text-[var(--seo-text)]">{f.label}</p>
+                        <AffectedList affected={f.affected} />
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 ) : (
                   <p className="text-sm text-[var(--seo-muted)]">Nothing quick to fix, nice work.</p>
                 )}

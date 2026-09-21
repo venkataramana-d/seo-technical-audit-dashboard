@@ -15,7 +15,8 @@ import { CHECK_DEFS, GROUP_HELP, GROUP_LABELS } from "@/lib/checklistDefs";
 import { useSelectedChecks } from "@/lib/useSelectedChecks";
 import { LinksView } from "@/components/detail/LinksView";
 import { HeadingsView } from "@/components/detail/HeadingsView";
-import { PerformanceView } from "@/components/detail/PerformanceView";
+import { PerformanceView, ImageSeoTab } from "@/components/detail/PerformanceView";
+import { deriveImageAffected } from "@/lib/imageAnalysis";
 import { AiSummaryCard } from "@/components/AiSummaryCard";
 
 // "Recommendations" used to be its own 8th tab, but it just re-rendered the
@@ -29,6 +30,7 @@ const TABS = [
   "Links",
   "Headings",
   "Content",
+  "Images",
   "Performance",
 ] as const;
 type Tab = (typeof TABS)[number];
@@ -159,11 +161,11 @@ export default function DetailPage() {
   const [focus, setFocus] = useState<{ value: string; seq: number } | null>(null);
 
   function locateElement(value: string) {
-    // Image srcs live in Performance → Image SEO; link targets in Links → Links.
+    // Image srcs live in the Images tab; link targets in Links → Links.
     // Anything else (title/H1 text, robots directive, etc.) has no row-level
     // table, so we leave the tab as-is and just flag the value.
     if (looksLikeImage(value)) {
-      setTab("Performance");
+      setTab("Images");
     } else if (looksLikeUrl(value)) {
       setTab("Links");
     }
@@ -183,7 +185,15 @@ export default function DetailPage() {
   const idx = Math.min(selectedUrlIndex, results.length - 1);
   const r = results[idx];
   const breakdown = r.score_breakdown || {};
-  const issues = r.all_issues || [];
+  // Backfill the exact offending images for image issues whose `affected` is
+  // empty (audits crawled before the backend attached it), read from the
+  // per-image image_detail list that's always present on the result.
+  const detailImages = r.image_detail?.images || [];
+  const issues = (r.all_issues || []).map((iss) => {
+    if (iss.affected && iss.affected.length > 0) return iss;
+    const derived = deriveImageAffected(iss.issue, detailImages);
+    return derived.length > 0 ? { ...iss, affected: derived } : iss;
+  });
   const grouped = getThematicIssues(issues);
   const topIssues = getTopIssuesByImpact(issues, 10);
   // Grounds the "Suggest a fix" action (IssueRow -> FixSuggestionButton) in
@@ -729,6 +739,9 @@ export default function DetailPage() {
         </div>
       ) : null}
 
+      {tab === "Images" ? (
+        <ImageSeoTab results={[r]} showSource={false} focusValue={focus?.value} focusSeq={focus?.seq} />
+      ) : null}
       {tab === "Performance" ? <PerformanceView result={r} focusValue={focus?.value} focusSeq={focus?.seq} /> : null}
     </div>
   );

@@ -422,7 +422,7 @@ export function PerformanceView({
   );
 }
 
-function ImageSeoTab({
+export function ImageSeoTab({
   results,
   showSource,
   focusValue,

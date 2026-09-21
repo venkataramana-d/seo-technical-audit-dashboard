@@ -529,6 +529,19 @@ def _build_issues(summary, check_sizes, images=None):
         })
 
     if n["duplicate_alt"] > 0:
+        # No single per-image label marks a duplicate; find the images that
+        # share a non-empty alt value so the UI can point at the exact ones.
+        alt_counts = Counter(
+            (im.get("alt_text") or "").strip()
+            for im in imgs
+            if (im.get("alt_text") or "").strip()
+        )
+        dup_aff = [
+            {"value": im.get("url", ""), "detail": f'alt="{(im.get("alt_text") or "").strip()}"'}
+            for im in imgs
+            if (im.get("alt_text") or "").strip()
+            and alt_counts[(im.get("alt_text") or "").strip()] > 1
+        ][:50]
         issues.append({
             "issue": f"Duplicate alt text on {n['duplicate_alt']} image(s)",
             "category": "Image SEO",
@@ -536,6 +549,7 @@ def _build_issues(summary, check_sizes, images=None):
             "recommendation": "Use unique alt text for each image to provide distinct context.",
             "impact_score": 4,
             "effort": "Medium",
+            "affected": dup_aff,
         })
 
     if n["no_lazy"] > 0:
