@@ -11,7 +11,7 @@ const SECURITY_HEADERS = [
 
 const nextConfig: NextConfig = {
   // Baked into the client bundle at build time. Backs the bulk-audit
-  // URL-limit inputs in app/technical-audit/page.tsx — see
+  // URL-limit inputs in app/technical-audit/page.tsx - see
   // modules/_http.py::bulk_url_cap for the matching backend-side cap.
   // Same value everywhere (production, preview, local) since both caps are
   // 5000; kept as an explicit env var rather than a bare literal so a future

@@ -59,7 +59,7 @@ def _handle_fix_suggestion(handler, payload):
 def _handle_content_draft(handler, payload):
     """Anthropic-backed content draft (rebuild's Content Agent, 09 §1): given an
     issue type + page context, draft an improved title or meta description.
-    Draft-only/additive — it never writes to a page. Uses the vaulted
+    Draft-only/additive - it never writes to a page. Uses the vaulted
     'anthropic' key (or a per-request apiKey); degrades gracefully with no key.
     """
     try:
@@ -110,13 +110,13 @@ def _handle_content_draft(handler, payload):
 
 
 # Consolidates what used to be separate api/*.py files (ai-summary,
-# fix-suggestion, config-status) into one Vercel serverless function — see
+# fix-suggestion, config-status) into one Vercel serverless function - see
 # api/audit-pipeline.py's module docstring-equivalent comment for why
 # (Vercel's Python builder reinstalls the full requirements.txt per function,
 # so fewer functions means fewer ~14s installs at build time). Dispatch is by
 # an "action" field in the POST body; callers POST to /api/ai with
 # {"action": "summary"|"fix-suggestion", ...}. (The "chat" action + floating
-# ChatWidget were removed in Session 24 — the AI is now focused on the
+# ChatWidget were removed in Session 24 - the AI is now focused on the
 # per-page/per-issue personalized fix suggestions and the audit summary.)
 _ACTIONS = {
     "summary": _handle_summary,
@@ -128,7 +128,7 @@ _ACTIONS = {
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         # Config-status is the one GET in this group (just reports whether
-        # server-side keys are set — env var or vault). Sign-in required so it
+        # server-side keys are set - env var or vault). Sign-in required so it
         # doesn't disclose config to anonymous callers (audit finding #8).
         try:
             require_authenticated(self)

@@ -1,9 +1,9 @@
-// Browser-driven persisted crawl (Vercel-only architecture — no always-on
+// Browser-driven persisted crawl (Vercel-only architecture - no always-on
 // worker). The browser discovers URLs, audits each page via the existing
 // serverless audit endpoint, and streams each result into the database through
 // /api/crawls "ingest", then "finalize" runs the site-wide aggregation pass and
 // scores. It runs while the page is open (navigating away stops it, same as the
-// Technical Audit orchestrator) — matching Vercel's per-request function model.
+// Technical Audit orchestrator) - matching Vercel's per-request function model.
 
 async function postAudit<T>(action: string, body: Record<string, unknown>): Promise<T> {
   const res = await fetch("/api/audit-pipeline", {
@@ -41,7 +41,7 @@ export async function runPersistedCrawl(opts: {
   const { crawlId, rootUrl, maxPages, maxDepth, robotsMode } = opts;
   const concurrency = opts.concurrency ?? 4;
 
-  // 1) Discover URLs — one server-side BFS pass (capped), like the Technical
+  // 1) Discover URLs - one server-side BFS pass (capped), like the Technical
   //    Audit "Crawl" mode. Falls back to just the root if discovery yields none.
   let urls: string[] = [];
   try {
@@ -59,7 +59,7 @@ export async function runPersistedCrawl(opts: {
   urls = urls.slice(0, maxPages);
 
   // 2) Audit + ingest each page with bounded concurrency (one audit function
-  //    invocation per URL, well under Vercel's timeout — the proven pattern).
+  //    invocation per URL, well under Vercel's timeout - the proven pattern).
   const total = urls.length;
   let done = 0;
   let idx = 0;
@@ -85,7 +85,7 @@ export async function runPersistedCrawl(opts: {
 
   await Promise.all(Array.from({ length: Math.min(concurrency, urls.length) }, () => worker()));
 
-  // 3) Finalize — site-wide duplicate/orphan/redirect pass + health/SEO scores.
+  // 3) Finalize - site-wide duplicate/orphan/redirect pass + health/SEO scores.
   await postCrawls("finalize", { crawlId, status: "completed" });
   return { pages: done };
 }

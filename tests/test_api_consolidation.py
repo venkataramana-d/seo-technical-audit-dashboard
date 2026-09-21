@@ -4,7 +4,7 @@ These two files consolidate what used to be 9 separate api/*.py Vercel
 functions into 2, to cut Vercel's per-function Python dependency install
 time at build (see the module docstring-equivalent comment in each file).
 The dispatch logic (_ACTIONS dict + do_POST routing) is new, real logic
-introduced by that consolidation, so it gets direct coverage here — unlike
+introduced by that consolidation, so it gets direct coverage here - unlike
 the thin per-action handler bodies themselves, which just call straight
 into modules/*.py functions already covered by their own test files
 (test_ai_assist.py, test_ssrf.py, etc.) and follow this repo's established
@@ -80,7 +80,7 @@ class TestAuditPipelineDispatch:
         assert called.get("hit") is True
 
     def test_malformed_body_returns_400_not_crash(self):
-        # A malformed JSON body is a client error (400), not a server error —
+        # A malformed JSON body is a client error (400), not a server error -
         # see audit finding #4. (Previously mapped to a generic 500.)
         h = MagicMock()
         h.headers = {"Content-Length": "9"}

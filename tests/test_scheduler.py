@@ -1,4 +1,4 @@
-"""Tests for worker/scheduler.py's enqueue_due_crawls() — the Phase 3
+"""Tests for worker/scheduler.py's enqueue_due_crawls() - the Phase 3
 "Always-on" tick. No real time.sleep()/cron daemon involved: this directly
 calls the tick function with hand-set next_run_at values."""
 
@@ -65,7 +65,7 @@ def test_due_config_gets_a_new_crawl_and_job_enqueued(isolated_db):
 
         config = db.get(CrawlConfig, config_id)
         # SQLite's DateTime storage drops tzinfo on round-trip (a pre-existing
-        # characteristic of this schema, not scheduler-specific) — compare as
+        # characteristic of this schema, not scheduler-specific) - compare as
         # naive UTC.
         assert config.next_run_at > now.replace(tzinfo=None)  # advanced into the future
 

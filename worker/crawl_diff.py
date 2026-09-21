@@ -1,4 +1,4 @@
-"""Phase 3 diff engine (02-AUDIT-ENGINE.md §6) — comparing crawl N vs. N-1 of
+"""Phase 3 diff engine (02-AUDIT-ENGINE.md §6) - comparing crawl N vs. N-1 of
 the same project. Computed on demand from existing Page/Issue rows, not
 persisted (same "recompute, don't materialize" choice as
 worker/site_audit.py's get_thematic_report).
@@ -6,7 +6,7 @@ worker/site_audit.py's get_thematic_report).
 Matching is by URL, not row ID: each crawl creates entirely fresh Page rows
 (Phase 1 design), so page_id isn't stable across crawls of the same project.
 Page-level issues are matched by (Page.url, Issue.issue_type); sitewide
-issues (page_id IS NULL) are matched by issue_type alone — coarser, since an
+issues (page_id IS NULL) are matched by issue_type alone - coarser, since an
 aggregate finding's exact member list isn't tracked as an identity.
 """
 
@@ -22,7 +22,7 @@ from worker.db.session import SessionLocal
 
 def get_previous_completed_crawl(crawl_id: int) -> Crawl | None:
     """The most recent completed crawl of the same project, before this one
-    — the natural "N-1" to diff a given crawl against."""
+    - the natural "N-1" to diff a given crawl against."""
     with SessionLocal() as db:
         crawl = db.get(Crawl, crawl_id)
         if crawl is None:
@@ -116,7 +116,7 @@ def compare_crawls(old_crawl_id: int, new_crawl_id: int) -> dict:
 
 def get_score_trend(project_id: int) -> list[dict]:
     """health_score/seo_score_avg for every completed crawl of a project, in
-    chronological order — the trend-line data source."""
+    chronological order - the trend-line data source."""
     with SessionLocal() as db:
         rows = db.execute(
             select(Crawl.id, Crawl.health_score, Crawl.seo_score_avg, Crawl.finished_at)

@@ -1,11 +1,11 @@
-"""Testing AI Agent — 09-AI-AGENT-SUBSYSTEMS.md §3.
+"""Testing AI Agent - 09-AI-AGENT-SUBSYSTEMS.md §3.
 
 Tests the audit ENGINE's own accuracy (not a customer's site): runs the per-page
 audit against a library of golden HTML fixtures with hand-verified expected
 issues and computes per-issue-type precision/recall. Feeds §2's sampling rate
 (historical_fp_rate = 1 - precision).
 
-Deterministic — no LLM. Fixture *generation* from a production-flagged case
+Deterministic - no LLM. Fixture *generation* from a production-flagged case
 produces an ANONYMIZED, unapproved proposal (a review item), never auto-merged
 into the gating suite (guardrail §3).
 
@@ -83,7 +83,7 @@ _TEXT_RE = re.compile(r">([^<>]+)<")
 
 def anonymize_html(html: str) -> str:
     """Strip customer-identifying content while preserving the structural triggers
-    the audit checks key on (tags, attributes, lengths). Guardrail §3 — required,
+    the audit checks key on (tags, attributes, lengths). Guardrail §3 - required,
     since fixtures may be shared across a team/repo.
 
     - hrefs/srcs -> example.com equivalents (keeps link structure, drops real URLs)

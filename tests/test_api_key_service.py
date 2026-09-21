@@ -1,4 +1,4 @@
-"""Tests for worker/api_key_service.py — set/get/list/delete against an
+"""Tests for worker/api_key_service.py - set/get/list/delete against an
 in-memory SQLite DB (matching tests/test_worker_crawl.py's pattern), with
 particular attention to the one hard rule: list_api_keys() must never
 surface a decrypted value anywhere in its output."""

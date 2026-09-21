@@ -2,15 +2,15 @@
 
 Deliberately dialect-neutral: `JSON` (not `postgresql.JSONB`) and integer
 autoincrement primary keys (not `UUID`) so the exact same models run
-unchanged against local SQLite (dev) and Postgres (production) — swapping
+unchanged against local SQLite (dev) and Postgres (production) - swapping
 `DATABASE_URL` in `worker/db/session.py` is the only change needed later.
 
 Table shapes follow `03-DATA-MODEL-AND-API.md` from the rebuild plan.
 `schedules`/`alert_rules` stay deferred (Phase 3 folded scheduling into
-`CrawlConfig` instead — see `worker/scheduler.py`); `api_keys` was added in
+`CrawlConfig` instead - see `worker/scheduler.py`); `api_keys` was added in
 Phase 5 (`worker/vault.py`/`worker/api_key_service.py`). `users`/
 `organizations`/`memberships` exist so foreign keys resolve, but there is no
-login flow yet — see the Phase 0 plan's scope note.
+login flow yet - see the Phase 0 plan's scope note.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class Base(DeclarativeBase):
 
 
 # ---------------------------------------------------------------------------
-# Tenancy (schema only — see Phase 0 plan's auth scope decision)
+# Tenancy (schema only - see Phase 0 plan's auth scope decision)
 # ---------------------------------------------------------------------------
 
 
@@ -72,7 +72,7 @@ class Membership(Base):
 
 class PasswordResetRequest(Base):
     """A user's "I forgot my password" request. The admin resolves it from the
-    admin portal by setting a new (temporary) password — no email service is
+    admin portal by setting a new (temporary) password - no email service is
     involved. `email` is stored denormalized so a request can be raised for an
     address even if it doesn't match a user (shown to the admin as "no such
     account") without leaking existence back to the requester."""
@@ -146,7 +146,7 @@ class Crawl(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    # Which CrawlConfig snapshot this run used — a project can accumulate
+    # Which CrawlConfig snapshot this run used - a project can accumulate
     # multiple crawl_configs over time (settings changed between runs), so
     # this pins a Crawl to the exact config it was launched with rather than
     # requiring an ambiguous "latest config for this project" lookup.
@@ -180,7 +180,7 @@ class Page(Base):
     raw_html_ref: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     rendered_html_ref: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     seo_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    # Phase 2 additions — all already computed per-page by modules/auditor.py
+    # Phase 2 additions - all already computed per-page by modules/auditor.py
     # and modules/advanced_checks.py; these columns are what finally persist
     # them so worker/site_audit.py can aggregate across a whole crawl.
     canonical_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
@@ -230,7 +230,7 @@ class Issue(Base):
 
 class IssueTypeConfig(Base):
     """Lets an org reclassify an issue type's default severity (e.g. 'missing
-    alt text' as Warning instead of Notice) — per-org override, global
+    alt text' as Warning instead of Notice) - per-org override, global
     default otherwise."""
 
     __tablename__ = "issue_type_config"
@@ -241,7 +241,7 @@ class IssueTypeConfig(Base):
 
 
 # ---------------------------------------------------------------------------
-# Local job queue (worker/queue.py) — stands in for Redis+Celery/arq locally
+# Local job queue (worker/queue.py) - stands in for Redis+Celery/arq locally
 # ---------------------------------------------------------------------------
 
 
@@ -260,13 +260,13 @@ class Job(Base):
 
 
 # ---------------------------------------------------------------------------
-# Credential vault (Phase 5) — worker/vault.py encrypts, worker/api_key_service.py owns access
+# Credential vault (Phase 5) - worker/vault.py encrypts, worker/api_key_service.py owns access
 # ---------------------------------------------------------------------------
 
 
 class ApiKey(Base):
     """One encrypted provider credential per (org, provider). `encrypted_value`
-    is a Fernet token (see worker/vault.py) — never stored or returned as
+    is a Fernet token (see worker/vault.py) - never stored or returned as
     plaintext; only worker/api_key_service.py::get_api_key() decrypts it, for
     server-side use only."""
 

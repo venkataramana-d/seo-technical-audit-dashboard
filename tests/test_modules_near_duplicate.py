@@ -11,7 +11,7 @@ from modules.near_duplicate import (
 )
 
 # Representative page-length content: many distinct tokens (real pages are not a
-# single repeated sentence — shingle SETS dedupe repetition, so short/repetitive
+# single repeated sentence - shingle SETS dedupe repetition, so short/repetitive
 # fixtures aren't representative). NEAR differs from BASE by a couple of tokens.
 _WORDS = [f"token{i}" for i in range(200)]
 BASE = " ".join(_WORDS)

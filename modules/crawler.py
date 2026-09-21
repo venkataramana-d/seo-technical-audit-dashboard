@@ -227,7 +227,7 @@ def crawl_site(config: CrawlConfig, progress_callback=None, on_result=None) -> d
     return the aggregate result. `progress_callback(pages_done, max_pages)` is
     invoked after each page finishes, if provided. `on_result(url, outcome)` is
     invoked once per processed URL (success, robots-skip, or fetch-error alike)
-    with the same `outcome` dict `_process()` produced — the hook a caller uses
+    with the same `outcome` dict `_process()` produced - the hook a caller uses
     to persist each page as it's crawled instead of waiting for the final
     in-memory return value (see worker/crawl_service.py)."""
     started = datetime.now()
@@ -257,7 +257,7 @@ def crawl_site(config: CrawlConfig, progress_callback=None, on_result=None) -> d
     last_request: dict = {}
     throttle_lock = threading.Lock()
 
-    # Phase 4: a small, separate pool for JS rendering — never the main BFS
+    # Phase 4: a small, separate pool for JS rendering - never the main BFS
     # pool (config.max_workers, sized for cheap raw HTTP fetches). Capped at
     # 2 regardless of max_workers, per 01-CRAWLER-ENGINE.md's explicit
     # "2 render workers vs. 20 fetch workers" guidance, since each render is
@@ -311,7 +311,7 @@ def crawl_site(config: CrawlConfig, progress_callback=None, on_result=None) -> d
                     page_record["audit"] = rendered_audit
                     page_record["rendered"] = True
                     # A large raw-vs-rendered content gap means crawlers/tools
-                    # that don't execute JS will miss real content — the same
+                    # that don't execute JS will miss real content - the same
                     # signal Screaming Frog's own rendered mode flags.
                     if rendered_words > raw_words * 1.5 and (rendered_words - raw_words) >= 50:
                         rendered_audit.setdefault("all_issues", []).append({
@@ -320,7 +320,7 @@ def crawl_site(config: CrawlConfig, progress_callback=None, on_result=None) -> d
                             "severity": "Warning",
                             "recommendation": (
                                 f"Rendered content has {rendered_words} words vs {raw_words} in the raw HTML. "
-                                "Crawlers/tools that don't execute JavaScript will miss this content — consider "
+                                "Crawlers/tools that don't execute JavaScript will miss this content - consider "
                                 "server-side rendering or static generation for anything SEO-critical."
                             ),
                             "impact_score": 6,

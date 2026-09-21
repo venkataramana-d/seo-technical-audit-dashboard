@@ -1,17 +1,17 @@
-"""QA AI Agent — 09-AI-AGENT-SUBSYSTEMS.md §2.
+"""QA AI Agent - 09-AI-AGENT-SUBSYSTEMS.md §2.
 
 Catches false positives and template-wide noise in the tool's OWN rule-based
 findings, before they reach the customer. Two distinct jobs:
 
   1. Statistical template rollup (DETERMINISTIC, no LLM): if an issue type fires
      on >= threshold of crawled pages, it's almost certainly one template-wide
-     condition, not N independent problems — collapse it into a single flag with
+     condition, not N independent problems - collapse it into a single flag with
      an affected-page count instead of showing thousands of identical rows.
   2. LLM false-positive validation (SAMPLED, not exhaustive): for issue types
      with historically higher false-positive rates, sample a few flagged pages
      and ask the model whether the finding is actually real.
 
-STRICTLY ADDITIVE: this never deletes or hides a rule-based finding — it only
+STRICTLY ADDITIVE: this never deletes or hides a rule-based finding - it only
 annotates. The deterministic auditor remains the source of truth.
 
 The pure functions here take plain records; `run_qa_pass` (DB-facing) loads
@@ -52,7 +52,7 @@ class TemplateRollup:
             "affected_count": self.affected_count,
             "total_pages": self.total_pages,
             "ratio": round(self.ratio, 3),
-            "note": "Fires on nearly every page — likely one template-wide condition, not N problems.",
+            "note": "Fires on nearly every page - likely one template-wide condition, not N problems.",
         }
 
 
@@ -92,7 +92,7 @@ def select_validation_sample(
 ) -> list[QaIssue]:
     """Pick issues to LLM-validate: only issue types whose historical false-
     positive rate is at or above the floor, capped at `sample_size` per type.
-    Deterministic (sorts by issue_id) so runs are reproducible — no RNG."""
+    Deterministic (sorts by issue_id) so runs are reproducible - no RNG."""
     by_type: dict[str, list[QaIssue]] = defaultdict(list)
     for issue in issues:
         if fp_rates.get(issue.issue_type, 0.0) >= sampling_floor:
@@ -119,7 +119,7 @@ _QA_SYSTEM = (
     "You are a meticulous SEO QA reviewer. You are given ONE automated SEO finding and the "
     "page it was raised on. Decide whether the finding is a genuine issue or a false positive "
     "(e.g. the flagged tag is inside a commented-out block, or 'duplicate content' pages are "
-    "legitimate locale variants like /en/ vs /en-gb/). You are advisory only — a human reviews "
+    "legitimate locale variants like /en/ vs /en-gb/). You are advisory only - a human reviews "
     "your call. Respond with ONLY a JSON object: "
     '{"is_false_positive": true|false, "reason": "<one sentence>"}.'
 )
@@ -128,7 +128,7 @@ _QA_SYSTEM = (
 def validate_issue(llm, issue: QaIssue, page_context: str) -> FalsePositiveFlag | None:
     """Ask the LLM whether one finding is a false positive. Returns a flag only
     when the model says so; returns None on a genuine finding or an unparseable
-    answer (fail-open — never invent a false-positive flag on bad output)."""
+    answer (fail-open - never invent a false-positive flag on bad output)."""
     from modules.llm import parse_json_object
 
     user = (

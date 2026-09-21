@@ -1,4 +1,4 @@
-"""Custom Extraction — Phase 4.5 (00-PLAN-OVERVIEW.md) / 08-SCREAMING-FROG-TECHNICAL-REFERENCE.md §4.
+"""Custom Extraction - Phase 4.5 (00-PLAN-OVERVIEW.md) / 08-SCREAMING-FROG-TECHNICAL-REFERENCE.md §4.
 
 User-defined scraping of arbitrary data from crawled pages via XPath, CSS-Path,
 or Regex, matching Screaming Frog's feature exactly:
@@ -6,7 +6,7 @@ or Regex, matching Screaming Frog's feature exactly:
   - up to 100 extractors per crawl
   - a combined cap of 1,000 total extracted values across all extractors in one crawl
   - selector types: xpath | css | regex  (CSS is translated to XPath, not a
-    separate engine — same as SF)
+    separate engine - same as SF)
   - each extractor targets the raw (unrendered) or rendered HTML  (rendered is
     only meaningful once Playwright rendering lands in Phase 4; until then a
     'rendered' extractor simply runs against whatever HTML it is handed and the
@@ -14,7 +14,7 @@ or Regex, matching Screaming Frog's feature exactly:
 
 Config lives in crawl_configs.custom_extractors (JSON list, already in the
 schema); results are returned as ExtractionResult records for the caller to
-persist per page. This module is pure — no DB, no network — so it is fully
+persist per page. This module is pure - no DB, no network - so it is fully
 unit-testable on HTML fixtures.
 """
 from __future__ import annotations
@@ -132,7 +132,7 @@ def _run_xpath(tree, expression: str) -> list[str]:
 
 
 def _run_css(tree, expression: str) -> list[str]:
-    # CSSSelector translates the CSS path to XPath under the hood — same approach
+    # CSSSelector translates the CSS path to XPath under the hood - same approach
     # SF documents. Import locally so a missing optional dep only affects CSS.
     from lxml.cssselect import CSSSelector
     selector = CSSSelector(expression)
@@ -164,7 +164,7 @@ def run_extractor(extractor: CustomExtractor, html_text: str, tree=None) -> Extr
                 values = _run_css(tree, extractor.expression)
     except (XPathError, re.error, ValueError, SyntaxError) as exc:
         return ExtractionResult(extractor.name, [], error=f"{type(exc).__name__}: {exc}")
-    # drop empty strings — an empty capture is not a useful extracted value
+    # drop empty strings - an empty capture is not a useful extracted value
     values = [v for v in values if v]
     return ExtractionResult(extractor.name, values)
 

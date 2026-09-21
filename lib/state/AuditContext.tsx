@@ -202,7 +202,7 @@ export function AuditProvider({ children }: { children: ReactNode }) {
         // Unlike addResult (a single, user-initiated audit), addResults is
         // called repeatedly in the background while a bulk crawl is still
         // running (lib/crawl/chunkedRunner.ts flushes every few completed
-        // URLs). Don't touch selectedUrlIndex here — doing so would yank the
+        // URLs). Don't touch selectedUrlIndex here - doing so would yank the
         // Detail page to a different URL out from under a user reading an
         // already-audited result while the crawl keeps going behind the scenes.
       },

@@ -1,11 +1,11 @@
-"""`python -m worker` — starts the worker loop.
+"""`python -m worker` - starts the worker loop.
 
 Imports `worker.tasks` for its side effect (registering job handlers via the
 `@register` decorator) before starting. The loop itself interleaves two
-things in one process (no separate scheduler process/cron daemon — see
+things in one process (no separate scheduler process/cron daemon - see
 `worker/scheduler.py`'s docstring for why): claiming/processing queued jobs
 via `Worker.run_once()`, and periodically checking for due recurring crawls
-via `enqueue_due_crawls()`. `worker/queue.py` stays fully generic — only this
+via `enqueue_due_crawls()`. `worker/queue.py` stays fully generic - only this
 driving loop knows both concerns exist.
 """
 

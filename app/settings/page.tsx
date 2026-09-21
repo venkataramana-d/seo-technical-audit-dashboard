@@ -106,7 +106,7 @@ function ApiKeyVaultCard() {
     <Card className="mb-4">
       <h3 className="mb-2 text-sm font-semibold text-[var(--seo-subheading)]">API Key Vault</h3>
       <p className="mb-3 text-sm text-[var(--seo-text-light)]">
-        Saved server-side, encrypted at rest — separate from the per-browser Groq key below
+        Saved server-side, encrypted at rest - separate from the per-browser Groq key below
         and the <code>PSI_API_KEY</code> environment variable. Used automatically wherever
         those providers are already integrated (PSI, Groq), falling back to the env var if unset.
       </p>
@@ -316,7 +316,7 @@ export default function SettingsPage() {
           Profile
         </h3>
         <p className="mb-3 text-sm text-[var(--seo-text-light)]">
-          Optional display info — this is saved only in this browser, the same way
+          Optional display info - this is saved only in this browser, the same way
           the Groq key below is, and is separate from your account sign-in.
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

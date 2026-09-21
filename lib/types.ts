@@ -1,3 +1,12 @@
+/** One offending element the backend attached to an issue, telling the UI
+ * exactly WHERE the issue is (image src, link target, title text, canonical
+ * URL, redirect hop, etc.). `value` is the element itself; `detail` is optional
+ * extra context (e.g. "123 chars", the anchor text, the status code). */
+export interface AffectedElement {
+  value: string;
+  detail?: string;
+}
+
 export interface Issue {
   issue: string;
   category: string;
@@ -5,6 +14,8 @@ export interface Issue {
   recommendation: string;
   impact_score: number;
   effort: string;
+  /** The exact offending elements for this issue, if the backend attached them. */
+  affected?: AffectedElement[];
 }
 
 export type ChecklistStatus = "pass" | "warning" | "fail" | "info";

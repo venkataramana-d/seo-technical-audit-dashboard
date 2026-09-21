@@ -1,15 +1,15 @@
-"""UI/UX AI Agent — 09-AI-AGENT-SUBSYSTEMS.md §4.
+"""UI/UX AI Agent - 09-AI-AGENT-SUBSYSTEMS.md §4.
 
 Turns raw crawl/issue data into role-appropriate, navigable views. Three jobs,
 each with a hard guardrail:
 
-  1. Natural-language crawl summary — a TEMPLATED narrative filled from real
+  1. Natural-language crawl summary - a TEMPLATED narrative filled from real
      aggregates. Numbers are always interpolated from the query result, never
      produced by the model; the LLM (optional) only rephrases text it is handed.
-  2. Ask-your-crawl — the LLM selects one of a fixed set of PARAMETERIZED query
+  2. Ask-your-crawl - the LLM selects one of a fixed set of PARAMETERIZED query
      templates and fills typed, validated params. It never writes SQL. Crawled
      page content (potentially adversarial) never reaches a query-executing path.
-  3. Role-adaptive default views — a pure view-configuration layer.
+  3. Role-adaptive default views - a pure view-configuration layer.
 
 Pure module: aggregation/rendering/template-selection here; DB execution in
 uiux_runner.py.
@@ -32,7 +32,7 @@ class SummaryFacts:
 
 
 def render_summary(facts: SummaryFacts) -> str:
-    """Deterministic narrative — every number comes straight from `facts`, so it
+    """Deterministic narrative - every number comes straight from `facts`, so it
     cannot state a metric it wasn't given (the anti-hallucination guardrail)."""
     parts: list[str] = [f"This crawl covered {facts.total_pages} page(s)."]
     if facts.health_score is not None:
@@ -53,7 +53,7 @@ def render_summary(facts: SummaryFacts) -> str:
 
 _NARRATE_SYSTEM = (
     "You are a concise SEO report writer. Rewrite the given crawl summary in a friendly, "
-    "professional tone for a dashboard. You MUST NOT change, add, or remove any number — use "
+    "professional tone for a dashboard. You MUST NOT change, add, or remove any number - use "
     "exactly the figures provided. Return only the rewritten summary text, no preamble."
 )
 
@@ -115,7 +115,7 @@ def _valid_issue_type(value) -> bool:
 
 def validate_selection(template: str, params: dict) -> dict:
     """Server-side validation of a (template, params) selection. Rejects unknown
-    templates and any param that isn't a declared, well-typed value — so nothing
+    templates and any param that isn't a declared, well-typed value - so nothing
     the model emits can reach SQL as anything but a bound, validated value."""
     spec = QUERY_TEMPLATES.get(template)
     if spec is None:

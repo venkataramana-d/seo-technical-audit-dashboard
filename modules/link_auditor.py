@@ -43,7 +43,7 @@ WEAK_ANCHORS = {
     "continue", "website", "url", "page", "article",
     "post", "check out", "check this", "find out", "more info",
     "click", "view", "details", "info",
-    # NOTE: "source", "download", and "example" were removed — on a citation
+    # NOTE: "source", "download", and "example" were removed - on a citation
     # ("Source"), a file link ("Download"), or a demo link ("Example") they are
     # contextually descriptive, not generic filler, and flagging them produced
     # weak-anchor false positives.
@@ -142,10 +142,10 @@ def link_health(code, domain=""):
       ok       : 2xx
       redirect : 3xx
       blocked  : 401/403 (auth / WAF / bot-challenge), 408/429 (rate-limit),
-                 451, 503 (unavailable/maintenance), 999 — the server is alive
+                 451, 503 (unavailable/maintenance), 999 - the server is alive
                  but refused or throttled our bot request; NOT a dead link
-      broken   : 404, 410, and 500/502/504 — a genuinely dead or erroring resource
-      unknown  : None (not validated), 0 (timeout/connection/SSL — could not verify)
+      broken   : 404, 410, and 500/502/504 - a genuinely dead or erroring resource
+      unknown  : None (not validated), 0 (timeout/connection/SSL - could not verify)
 
     Prior versions bucketed 403 (unless on a tiny hard-coded social-domain
     allowlist), 429, 503, and every connection failure as "broken", so a link to
@@ -450,7 +450,7 @@ def validate_url(url):
         }
 
     # Timeout / SSL / connection failures are transient or environmental (a slow
-    # server, a cold CDN, a cert quirk, a blip during the 12-worker burst) — they
+    # server, a cold CDN, a cert quirk, a blip during the 12-worker burst) - they
     # mean "could not verify", not "dead link". Marking them broken produced
     # broken-link false positives on pages whose links are actually fine, so they
     # are now "unknown" (is_broken False) and excluded from the broken count.
@@ -842,12 +842,20 @@ def _summarize_internal(links):
             "issue": f"Broken Internal Links ({broken})", "category": "Internal Links",
             "severity": "Critical", "impact_score": 9, "effort": "Low",
             "recommendation": "Fix or remove all broken internal links immediately: they harm user experience and crawlability.",
+            "affected": [
+                {"value": l["url"], "detail": f"HTTP {l.get('status_code') or '?'} · anchor: {l.get('anchor_text', '') or '[no text]'}"}
+                for l in links if l.get("is_broken") is True
+            ][:50],
         })
     if redirect > 0:
         issues.append({
             "issue": f"Redirecting Internal Links ({redirect})", "category": "Internal Links",
             "severity": "Warning", "impact_score": 5, "effort": "Low",
             "recommendation": "Update internal links to point directly to final destination URLs.",
+            "affected": [
+                {"value": l["url"], "detail": f"redirects · anchor: {l.get('anchor_text', '') or '[no text]'}"}
+                for l in links if l.get("is_redirect") is True
+            ][:50],
         })
     if miss_no > 0:
         issues.append({
@@ -863,6 +871,10 @@ def _summarize_internal(links):
             "issue": f"Weak Anchor Text on {weak_a} Internal Link(s)", "category": "Internal Links",
             "severity": "Low", "impact_score": 4, "effort": "Low",
             "recommendation": "Replace generic anchor text ('click here', 'read more') with descriptive keyword-rich phrases.",
+            "affected": [
+                {"value": l.get("anchor_text", "") or "[no text]", "detail": f"→ {l['url']}"}
+                for l in links if l.get("is_weak_anchor")
+            ][:50],
         })
 
     return {
@@ -906,6 +918,10 @@ def _summarize_external(links):
             "issue": f"Broken External Links ({broken})", "category": "External Links",
             "severity": "High", "impact_score": 8, "effort": "Low",
             "recommendation": "Replace or remove all broken external links: they harm user experience and trust signals.",
+            "affected": [
+                {"value": l["url"], "detail": f"HTTP {l.get('status_code') or '?'} · anchor: {l.get('anchor_text', '') or '[no text]'}"}
+                for l in links if l.get("is_broken") is True
+            ][:50],
         })
     if miss_noop > 0:
         issues.append({
@@ -926,6 +942,10 @@ def _summarize_external(links):
             "issue": f"Weak Anchor Text on {weak_a} External Link(s)", "category": "External Links",
             "severity": "Low", "impact_score": 3, "effort": "Low",
             "recommendation": "Use descriptive anchor text for external links rather than generic phrases.",
+            "affected": [
+                {"value": l.get("anchor_text", "") or "[no text]", "detail": f"→ {l['url']}"}
+                for l in links if l.get("is_weak_anchor")
+            ][:50],
         })
 
     return {

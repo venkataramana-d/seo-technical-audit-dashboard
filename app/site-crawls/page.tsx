@@ -99,7 +99,7 @@ export default function SiteCrawlsPage() {
         scheduleCron,
       });
       // Browser drives the crawl and streams each audited page into the DB
-      // (Vercel-only — no worker). Progress shows here until it finalizes.
+      // (Vercel-only - no worker). Progress shows here until it finalizes.
       setProgress("Discovering pages…");
       await runPersistedCrawl({
         crawlId: data.crawlId,
@@ -122,7 +122,7 @@ export default function SiteCrawlsPage() {
       <PageHeader
         icon={<GlobeIcon size={18} />}
         title="Site Crawls"
-        subtitle="Crawl an entire site — page discovery, per-page audits, and site-wide checks (duplicates, orphan pages, broken links)."
+        subtitle="Crawl an entire site - page discovery, per-page audits, and site-wide checks (duplicates, orphan pages, broken links)."
       />
 
       <Card className="mb-6">
@@ -177,7 +177,7 @@ export default function SiteCrawlsPage() {
             onChange={(e) => setRenderJs(e.target.checked)}
             className="h-4 w-4 accent-[var(--seo-accent)]"
           />
-          Render JavaScript (slower — for SPAs/client-rendered sites)
+          Render JavaScript (slower - for SPAs/client-rendered sites)
         </label>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <label className="text-sm text-[var(--seo-text)]">Repeat this crawl:</label>
@@ -204,7 +204,7 @@ export default function SiteCrawlsPage() {
         </div>
         <p className="mt-2 text-xs text-[var(--seo-muted)]">
           Max pages / depth (0 = homepage only). The crawl runs in your browser while this page is
-          open — keep the tab open until it finishes. Rendering uses a real browser per page and is
+          open - keep the tab open until it finishes. Rendering uses a real browser per page and is
           much slower than a raw fetch.
         </p>
         {progress ? (
@@ -238,7 +238,7 @@ export default function SiteCrawlsPage() {
                   <ScoreCircle score={crawl.healthScore} size={48} />
                 ) : (
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--seo-border)] text-xs text-[var(--seo-muted)]">
-                    —
+                    -
                   </div>
                 )}
                 <div className="min-w-0 flex-1">

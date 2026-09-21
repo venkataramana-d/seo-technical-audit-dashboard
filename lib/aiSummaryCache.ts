@@ -13,7 +13,7 @@ export interface AiSummaryCacheEntry {
 }
 
 /** Cheap, deterministic fingerprint of the inputs an AI Summary was generated
- * from. Not cryptographic — it only needs to change whenever the substantive
+ * from. Not cryptographic - it only needs to change whenever the substantive
  * input changes (score, which issues, their severities) so a cached summary
  * is correctly invalidated after a re-audit, and stay stable otherwise so
  * reopening the same result doesn't re-spend an API call. */

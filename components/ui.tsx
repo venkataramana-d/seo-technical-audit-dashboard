@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { scoreColor, severityColor } from "@/lib/format";
-import type { Issue } from "@/lib/types";
+import type { AffectedElement, Issue } from "@/lib/types";
 import { fixDifficulty, type Difficulty } from "@/lib/difficulty";
 import { explainCommonIssue, type CommonIssueExplanation } from "@/lib/commonIssuesKB";
 import { detectFixTarget, type FixPageContext, type FixSuggestion } from "@/lib/fixSuggestable";
@@ -245,34 +245,230 @@ export function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
   );
 }
 
+// --- "Where is the issue?" helpers -------------------------------------------
+// The backend attaches Issue.affected - the exact offending elements (image
+// src, link target, title/H1 text, canonical URL, redirect hop, etc.). These
+// helpers decide when an affected value is a URL/image worth linkifying, and
+// how to resolve a relative value against the audited page's URL.
+
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|avif|svg|bmp|ico|tiff?)(?:[?#].*)?$/i;
+
+/** True when the value clearly denotes a URL (absolute http(s) or root-relative). */
+export function looksLikeUrl(value: string): boolean {
+  const v = (value || "").trim();
+  return /^https?:\/\//i.test(v) || v.startsWith("/");
+}
+
+/** True when the value points at an image file (by extension). */
+export function looksLikeImage(value: string): boolean {
+  return IMAGE_EXT_RE.test((value || "").trim());
+}
+
+/** Resolve an affected value into an openable href, or null when it can't be
+ * safely linked. Relative values resolve against the audited page (baseUrl) so
+ * a new-tab open goes to the real resource, not the dashboard's own origin. */
+export function affectedHref(value: string, baseUrl?: string): string | null {
+  const v = (value || "").trim();
+  if (/^https?:\/\//i.test(v)) return v;
+  if (baseUrl) {
+    try {
+      return new URL(v, baseUrl).href;
+    } catch {
+      /* fall through */
+    }
+  }
+  if (v.startsWith("/")) return v;
+  return null;
+}
+
+/**
+ * Find the row/element tagged with `data-locate-value === value` inside
+ * `container`, scroll it into view and flash a temporary highlight ring (~2s).
+ * Returns whether a match was found. Used by the Detail page's jump-to-element:
+ * clicking an affected element switches to the relevant tab and calls this to
+ * reveal the exact matching row. `fuzzy` also matches when one value contains
+ * the other (image srcs can be stored relative in one place, absolute in
+ * another). The highlight is applied via inline style (no global CSS needed).
+ */
+export function locateAndHighlight(
+  container: HTMLElement | null,
+  value: string,
+  opts?: { fuzzy?: boolean },
+): boolean {
+  if (!container || !value) return false;
+  const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-locate-value]"));
+  let match: HTMLElement | null = null;
+  for (const el of rows) {
+    if (el.getAttribute("data-locate-value") === value) {
+      match = el;
+      break;
+    }
+  }
+  if (!match && opts?.fuzzy) {
+    for (const el of rows) {
+      const v = el.getAttribute("data-locate-value") || "";
+      if (v && (v.includes(value) || value.includes(v))) {
+        match = el;
+        break;
+      }
+    }
+  }
+  if (!match) return false;
+  match.scrollIntoView({ behavior: "smooth", block: "center" });
+  const prev = match.style.boxShadow;
+  const prevTransition = match.style.transition;
+  match.style.transition = "box-shadow 0.3s ease";
+  match.style.boxShadow = "0 0 0 2px var(--seo-card-bg), 0 0 0 4px var(--seo-accent)";
+  window.setTimeout(() => {
+    if (!match) return;
+    match.style.boxShadow = prev;
+    match.style.transition = prevTransition;
+  }, 2000);
+  return true;
+}
+
+/** One affected value, monospace + truncated (title = full). URL/image-like
+ * values render as a new-tab link; a "Locate" affordance (when `onLocate` is
+ * given) jumps to the matching row in the relevant detail table. */
+function AffectedValue({
+  value,
+  baseUrl,
+  onLocate,
+}: {
+  value: string;
+  baseUrl?: string;
+  onLocate?: (value: string) => void;
+}) {
+  const linkable = looksLikeUrl(value) || looksLikeImage(value);
+  const href = linkable ? affectedHref(value, baseUrl) : null;
+  return (
+    <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={value}
+          className="min-w-0 flex-1 truncate font-mono text-[var(--seo-accent)] hover:underline"
+        >
+          {value}
+        </a>
+      ) : (
+        <span title={value} className="min-w-0 flex-1 truncate font-mono text-[var(--seo-text)]">
+          {value}
+        </span>
+      )}
+      {onLocate && linkable ? (
+        <button
+          type="button"
+          onClick={() => onLocate(value)}
+          title="Find this element in the detailed table"
+          className="shrink-0 rounded px-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--seo-muted)] transition-colors hover:bg-[var(--seo-card-hover)] hover:text-[var(--seo-accent)]"
+        >
+          Locate
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * Compact, scannable list of an issue's offending elements (Issue.affected):
+ * exactly WHERE the issue is. Each row shows the value (monospace, truncated,
+ * full text on hover) plus a muted detail. URL/image values become new-tab
+ * links, and - when `onLocate` is supplied - expose a "Locate" jump. Long lists
+ * cap at `cap` (~15) with a "+N more" expander so a page with hundreds of
+ * offending elements stays readable.
+ */
+export function AffectedList({
+  affected,
+  baseUrl,
+  onLocate,
+  cap = 15,
+}: {
+  affected: AffectedElement[];
+  baseUrl?: string;
+  onLocate?: (value: string) => void;
+  cap?: number;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  if (!affected || affected.length === 0) return null;
+  const visible = showAll ? affected : affected.slice(0, cap);
+  const hidden = affected.length - visible.length;
+  return (
+    <div className="mt-2 rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-bg-alt)] p-2">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--seo-muted)]">
+        Affected element{affected.length === 1 ? "" : "s"} ({affected.length})
+      </div>
+      <ul className="flex flex-col gap-1">
+        {visible.map((a, i) => (
+          <li key={`${a.value}-${i}`} className="flex items-baseline gap-2 text-xs leading-relaxed">
+            <AffectedValue value={a.value} baseUrl={baseUrl} onLocate={onLocate} />
+            {a.detail ? (
+              <span className="shrink-0 text-[var(--seo-muted)]" title={a.detail}>
+                {a.detail}
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {hidden > 0 ? (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="mt-1 text-[11px] font-medium text-[var(--seo-accent)] hover:underline"
+        >
+          +{hidden} more
+        </button>
+      ) : null}
+      {showAll && affected.length > cap ? (
+        <button
+          type="button"
+          onClick={() => setShowAll(false)}
+          className="mt-1 text-[11px] font-medium text-[var(--seo-muted)] hover:underline"
+        >
+          Show less
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * `pageContext`/`groqApiKey` are optional: only the Detail page (which has a
  * single concrete AuditResult in scope) passes them, enabling the
  * "✨ Suggest a fix" action inside the Modal for issues detectFixTarget()
  * recognizes (metadata/H1 issues with a well-defined, draftable
  * replacement). Callers without page context (e.g. any future
- * sitewide/aggregated issue list) just don't render it — there's no single
+ * sitewide/aggregated issue list) just don't render it - there's no single
  * page to draft a fix for.
+ *
+ * `onLocate` (Detail page only) wires the affected-element list's "Locate"
+ * jump: clicking an offending element switches to the relevant detail tab and
+ * scrolls to + highlights the matching row.
  */
 export function IssueRow({
   issue,
   pageContext,
   groqApiKey,
+  onLocate,
 }: {
   issue: Issue;
   pageContext?: FixPageContext;
   groqApiKey?: string;
+  onLocate?: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const explanation = explainCommonIssue(issue);
   const fixTarget = pageContext ? detectFixTarget(issue.issue) : null;
+  const affected = issue.affected || [];
 
   return (
-    <>
+    <div className="border-b border-[var(--seo-border)] last:border-0">
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="block w-full border-b border-[var(--seo-border)] py-3 text-left transition-colors last:border-0 hover:bg-[var(--seo-card-hover)]"
+        className="block w-full pt-3 text-left transition-colors hover:bg-[var(--seo-card-hover)]"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -296,15 +492,30 @@ export function IssueRow({
           </span>
         </div>
       </button>
+      {affected.length > 0 ? (
+        <div className="pb-3">
+          <AffectedList affected={affected} baseUrl={pageContext?.url} onLocate={onLocate} />
+        </div>
+      ) : (
+        <div className="pb-3" />
+      )}
       <Modal open={open} onClose={() => setOpen(false)} title={issue.issue}>
         <div className="flex flex-col gap-4">
           <CommonIssueDetail explanation={explanation} />
+          {affected.length > 0 ? (
+            <div>
+              <h5 className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--seo-muted)]">
+                Where it occurs
+              </h5>
+              <AffectedList affected={affected} baseUrl={pageContext?.url} onLocate={onLocate} />
+            </div>
+          ) : null}
           {fixTarget && pageContext ? (
             <FixSuggestionButton issue={issue} pageContext={pageContext} apiKey={groqApiKey} />
           ) : null}
         </div>
       </Modal>
-    </>
+    </div>
   );
 }
 
@@ -411,7 +622,7 @@ function CommonIssueDetail({ explanation }: { explanation: CommonIssueExplanatio
 
 /** Shared "issue explanation" grid: What is it / Why it matters / SEO impact /
  * User impact / Recommended fix. Was independently re-typed in HeadingsView,
- * PerformanceView (ImageIssueDetail), and LinksView (IssueDetail) — the copy
+ * PerformanceView (ImageIssueDetail), and LinksView (IssueDetail) - the copy
  * had already drifted ("why it matters" vs "why is it important?") before
  * this was consolidated. `fields` lets callers insert extra cells (LinksView
  * adds Root Cause / Technical Details) while keeping one shared layout. */

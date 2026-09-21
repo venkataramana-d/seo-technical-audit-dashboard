@@ -2,7 +2,7 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Design tokens: modern-SaaS (Linear/Vercel) — restrained indigo accent,
+/* Design tokens: modern-SaaS (Linear/Vercel) - restrained indigo accent,
    hairline borders, subtle elevation, light default + dark override. */
 :root {
   /* Tell the browser which built-in palette to use for native form controls
@@ -75,7 +75,7 @@
   /* Soft accent wash for hero surfaces (New Audit hero, AI summary card). */
   --seo-gradient-soft: linear-gradient(135deg, rgba(99, 102, 241, 0.10), rgba(139, 92, 246, 0.10));
 
-  /* Sidebar shell — a dark rail regardless of app theme, so the workspace
+  /* Sidebar shell - a dark rail regardless of app theme, so the workspace
      chrome reads as a distinct surface from the content it frames. */
   --seo-sidebar-bg: #0B0B12;
   --seo-sidebar-text: #9CA0B4;
@@ -86,7 +86,7 @@
   --seo-sidebar-active-bg: rgba(99, 102, 241, 0.16);
   --seo-sidebar-track: rgba(255, 255, 255, 0.09);
 
-  /* Tighter radius scale — an "app" reads tighter than a marketing site. */
+  /* Tighter radius scale - an "app" reads tighter than a marketing site. */
   --seo-radius: 11px;
   --seo-radius-lg: 16px;
   --seo-radius-sm: 9px;
@@ -187,7 +187,7 @@ body {
 }
 
 /* Data numerals (scores, counts, metrics) line up in columns and don't jitter
-   when they change — apply to any numeric display element. */
+   when they change - apply to any numeric display element. */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
@@ -218,7 +218,7 @@ body {
 }
 
 /* Primary button. Flat accent fill, hairline-tinted inner highlight, whisper of
-   shadow — the old version glowed with a 20px violet halo that read as a
+   shadow - the old version glowed with a 20px violet halo that read as a
    marketing CTA, not an app control. Class name kept (used across the app). */
 .btn-gradient {
   background: var(--seo-accent);
@@ -287,7 +287,7 @@ h1, h2, h3, .track-tight {
   font-size: calc(var(--score-size) * 0.28);
 }
 
-/* Soft accent wash — hero surfaces that should feel branded without shouting. */
+/* Soft accent wash - hero surfaces that should feel branded without shouting. */
 .gradient-soft {
   background: var(--seo-gradient-soft);
 }

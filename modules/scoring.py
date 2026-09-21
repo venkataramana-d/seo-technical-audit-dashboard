@@ -74,7 +74,7 @@ def calculate_seo_score(result):
         "external_links": _category_score(result.get("external_links",{}).get("issues", [])),
         # `mobile_audit` MUST be included here: its issues are appended to
         # all_issues (auditor.py) so they show in the UI/counts/AI, but they were
-        # previously not in any scoring bucket — a mobile-broken page (missing
+        # previously not in any scoring bucket - a mobile-broken page (missing
         # viewport, intrusive interstitial) could still score 90+. Folded into
         # the "advanced" bucket, matching the WEIGHTS comment above.
         "advanced":       _category_score(

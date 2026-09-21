@@ -1,8 +1,8 @@
-"""Enumerated meta-robots / X-Robots-Tag directive set — 08-SCREAMING-FROG-TECHNICAL-REFERENCE.md §5.
+"""Enumerated meta-robots / X-Robots-Tag directive set - 08-SCREAMING-FROG-TECHNICAL-REFERENCE.md §5.
 
 Screaming Frog's Directives tab checks against exactly this closed set. Validating
 against an exhaustive, sourced list (rather than a partial ad-hoc one) was the
-concrete gap identified in that research doc — this module closes it.
+concrete gap identified in that research doc - this module closes it.
 """
 
 KNOWN_DIRECTIVES = {

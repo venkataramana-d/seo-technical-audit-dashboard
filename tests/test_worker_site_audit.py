@@ -1,4 +1,4 @@
-"""Tests for worker/site_audit.py — the Phase 2 post-crawl aggregation pass.
+"""Tests for worker/site_audit.py - the Phase 2 post-crawl aggregation pass.
 Seeds a crawl with hand-crafted Page/Link rows designed to trigger each
 check, then asserts the right sitewide/page-scoped Issue rows appear with
 the right severity. No network access: discover_sitemap_urls is stubbed."""

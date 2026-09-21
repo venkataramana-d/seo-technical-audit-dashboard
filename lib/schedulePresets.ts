@@ -1,4 +1,4 @@
-/** Common recurring-crawl cadences, mapped to concrete cron expressions —
+/** Common recurring-crawl cadences, mapped to concrete cron expressions -
  * shared between the "Start New Crawl" form and the crawl detail page's
  * Schedule card so both present/parse the same presets consistently.
  * Hand-writing cron syntax is real friction for a first pass; "Custom…"

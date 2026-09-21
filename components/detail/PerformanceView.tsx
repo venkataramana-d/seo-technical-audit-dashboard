@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, Fragment } from "react";
-import { Card, IssueExplanationGrid, MetricCard, Modal, TabBar } from "@/components/ui";
+import { useEffect, useMemo, useRef, useState, Fragment } from "react";
+import { Card, IssueExplanationGrid, locateAndHighlight, MetricCard, Modal, TabBar } from "@/components/ui";
 import { downloadCsv } from "@/lib/format";
 import type { AuditResult } from "@/lib/types";
 import {
@@ -88,8 +88,31 @@ function groupChecksByCategory(checks: MobileCheck[]) {
   return CATEGORY_ORDER.filter((cat) => groups.has(cat)).map((cat) => ({ category: cat, checks: groups.get(cat)! }));
 }
 
-export function PerformanceView({ result }: { result: AuditResult }) {
+export function PerformanceView({
+  result,
+  focusValue,
+  focusSeq,
+}: {
+  result: AuditResult;
+  /** An image src the Detail page wants revealed (jump-to-element). */
+  focusValue?: string;
+  /** Bumps each time a jump is requested, re-triggering even for the same value. */
+  focusSeq?: number;
+}) {
   const [subTab, setSubTab] = useState<"Mobile" | "Image SEO">("Mobile");
+
+  // Jump-to-element: an image src focus switches to the Image SEO sub-tab where
+  // the per-image table lives; ImageSeoTab then scrolls to + highlights the row.
+  // setState runs inside requestAnimationFrame, not the effect body, per the
+  // repo's react-hooks/set-state-in-effect rule.
+  const lastFocusSeq = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (focusSeq == null || !focusValue) return;
+    if (lastFocusSeq.current === focusSeq) return;
+    lastFocusSeq.current = focusSeq;
+    const raf = requestAnimationFrame(() => setSubTab("Image SEO"));
+    return () => cancelAnimationFrame(raf);
+  }, [focusSeq, focusValue]);
   const [psiLoading, setPsiLoading] = useState(false);
   const [psiError, setPsiError] = useState<string | null>(null);
   const [openCwvKey, setOpenCwvKey] = useState<string | null>(null);
@@ -393,13 +416,23 @@ export function PerformanceView({ result }: { result: AuditResult }) {
           </Modal>
         </div>
       ) : (
-        <ImageSeoTab results={[r]} showSource={false} />
+        <ImageSeoTab results={[r]} showSource={false} focusValue={focusValue} focusSeq={focusSeq} />
       )}
     </div>
   );
 }
 
-function ImageSeoTab({ results, showSource }: { results: AuditResult[]; showSource: boolean }) {
+function ImageSeoTab({
+  results,
+  showSource,
+  focusValue,
+  focusSeq,
+}: {
+  results: AuditResult[];
+  showSource: boolean;
+  focusValue?: string;
+  focusSeq?: number;
+}) {
   const images = useMemo(() => flattenImages(results), [results]);
   const formats = useMemo(() => formatBreakdown(images), [images]);
   const [altFilter, setAltFilter] = useState<AltFilter>("all");
@@ -410,6 +443,28 @@ function ImageSeoTab({ results, showSource }: { results: AuditResult[]; showSour
   const [sort, setSort] = useState<{ key: ImageSort; dir: 1 | -1 }>({ key: "priority", dir: -1 });
   const [expanded, setExpanded] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  // Jump-to-element: clear the filters so the focused image isn't hidden, then
+  // scroll to + highlight its row. Image srcs can be stored relative in one
+  // place and absolute in another, so match fuzzily. setState/DOM reads run in
+  // timers (not the effect body) per react-hooks/set-state-in-effect, and to let
+  // the reset filters re-render the table before we query for the row.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastFocusSeq = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (focusSeq == null || !focusValue) return;
+    if (lastFocusSeq.current === focusSeq) return;
+    lastFocusSeq.current = focusSeq;
+    const t = setTimeout(() => {
+      setAltFilter("all");
+      setFormatFilter("all");
+      setLcpOnly(false);
+      setIssueOnly(false);
+      setBrokenOnly(false);
+      setTimeout(() => locateAndHighlight(containerRef.current, focusValue, { fuzzy: true }), 90);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [focusSeq, focusValue]);
 
   const missingAlt = images.filter((i) => i.alt_status === "missing").length;
   const largeImages = images.filter((i) => i.issues.includes("Large file size (> 200KB)")).length;
@@ -508,7 +563,7 @@ function ImageSeoTab({ results, showSource }: { results: AuditResult[]; showSour
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" ref={containerRef}>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <MetricCard label="Total Images" value={images.length} />
         <TintedMetricCard
@@ -649,7 +704,7 @@ function ImageSeoTab({ results, showSource }: { results: AuditResult[]; showSour
               const explanations = img.issues.map((iss) => explainImageIssue(iss, img)).filter(Boolean);
               return (
                 <Fragment key={i}>
-                  <tr className="border-b border-[var(--table-row-border)]">
+                  <tr className="border-b border-[var(--table-row-border)]" data-locate-value={img.url}>
                     <td className="px-3 py-3">
                       <input type="checkbox" checked={selected.has(i)} onChange={() => toggleSelect(i)} />
                     </td>

@@ -3,7 +3,7 @@
 // Admin-only portal: manage users and resolve password-reset requests.
 // Role-gated both client-side (redirect non-admins) and server-side (every
 // admin-* action calls require_admin in api/auth.py). Password resets issue a
-// one-time temporary password the admin shares with the user out-of-band — no
+// one-time temporary password the admin shares with the user out-of-band - no
 // email service is involved (see worker/auth.py).
 
 import { useEffect, useState } from "react";
@@ -35,9 +35,9 @@ async function adminPost(action: string, body: Record<string, unknown> = {}) {
 }
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return isNaN(d.getTime()) ? "-" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 export default function AdminPage() {
@@ -174,7 +174,7 @@ export default function AdminPage() {
                 Temporary password for {tempResult.email}
               </p>
               <p className="mt-0.5 text-[12.5px] text-[var(--seo-text-light)]">
-                Share this with the user securely. It won&apos;t be shown again — they can change it after signing in.
+                Share this with the user securely. It won&apos;t be shown again - they can change it after signing in.
               </p>
               <code className="mt-2 inline-block rounded bg-[var(--seo-card-hover)] px-2.5 py-1 font-mono text-[14px] text-[var(--seo-heading)]">
                 {tempResult.tempPassword}
@@ -282,7 +282,7 @@ export default function AdminPage() {
                           : "bg-[var(--seo-card-hover)] text-[var(--seo-text-light)]"
                       }`}
                     >
-                      {u.role ?? "—"}
+                      {u.role ?? "-"}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-[var(--seo-text-light)]">{fmtDate(u.createdAt)}</td>

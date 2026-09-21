@@ -17,7 +17,7 @@ import { GlobeIcon } from "@/components/icons";
 import { formatDate } from "@/lib/format";
 import { SCHEDULE_PRESETS, humanizeCron, presetIdForCron } from "@/lib/schedulePresets";
 
-// Same convention as app/page.tsx's charts — Recharts tooltips ignore
+// Same convention as app/page.tsx's charts - Recharts tooltips ignore
 // Tailwind classes, but CSS variables in inline styles still resolve
 // against the current theme.
 const CHART_TOOLTIP_STYLE = {
@@ -164,7 +164,7 @@ const FINISHED_STATUSES = new Set(["completed", "failed"]);
 const TABS = ["Overview", "Pages", "Issues", "Site-wide", "Links", "Compare"] as const;
 type Tab = (typeof TABS)[number];
 
-// Site-wide analysis (api/analyze.py) — the "brains" folded in from the rebuild.
+// Site-wide analysis (api/analyze.py) - the "brains" folded in from the rebuild.
 interface SiteIssue {
   issueType: string;
   category: string;
@@ -218,7 +218,7 @@ function SeverityBadge({ severity }: { severity: string }) {
   );
 }
 
-/** Small colored square + text instead of a rounded pill badge — used inside
+/** Small colored square + text instead of a rounded pill badge - used inside
  * the dense Pages/Issues/Links grids specifically (a Screaming-Frog-style
  * data grid reads status via muted colored text, not big colorful chips).
  * SeverityChip/SeverityBadge (pill-based) stay as-is for the Overview tab's
@@ -231,7 +231,7 @@ const GRID_TH =
   "border border-[var(--table-row-border)] bg-[var(--table-header-bg)] px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--seo-muted)]";
 const GRID_TD = "border border-[var(--table-row-border)] px-2 py-1 align-top text-xs text-[var(--seo-text)]";
 
-/** One flat, underlined, count-labeled tab strip — the Screaming-Frog-style
+/** One flat, underlined, count-labeled tab strip - the Screaming-Frog-style
  * counterpart to `TabBar` (components/ui.tsx), scoped to this page only:
  * TabBar's rounded-pill look is shared across the single-URL detail page too
  * (components/detail/*View.tsx), so it isn't touched. */
@@ -273,7 +273,7 @@ type SelectedRow =
 
 /** Fetches this specific page's own issues (via the "issues" action's pageId
  * filter) so the detail panel can show the real, specific findings for a
- * selected page — not just the severity counts already on hand from the
+ * selected page - not just the severity counts already on hand from the
  * pages grid. Re-fetches whenever a different page is selected. */
 function usePageIssues(crawlId: number, pageId: number | null) {
   const [issues, setIssues] = useState<IssueRow[] | null>(null);
@@ -301,7 +301,7 @@ function usePageIssues(crawlId: number, pageId: number | null) {
 }
 
 // Issue types the AI Content Agent can draft a fix for (mirrors
-// modules/content_agent.py SUPPORTED_ISSUE_TYPES — title/meta only).
+// modules/content_agent.py SUPPORTED_ISSUE_TYPES - title/meta only).
 const AI_DRAFTABLE = /title|description|meta/i;
 
 function AiDraftButton({ issue }: { issue: IssueRow }) {
@@ -356,7 +356,7 @@ function AiDraftButton({ issue }: { issue: IssueRow }) {
             ) : null}
           </div>
           <p className="text-[13px] text-[var(--seo-heading)]">{draft.draftText}</p>
-          <p className="mt-1 text-[11px] text-[var(--seo-muted)]">Draft only — review before applying it to your page.</p>
+          <p className="mt-1 text-[11px] text-[var(--seo-muted)]">Draft only - review before applying it to your page.</p>
         </div>
       ) : null}
     </div>
@@ -389,10 +389,10 @@ function DetailPanel({
         <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--seo-muted)]">Page detail</h3>
         <div className="flex flex-col gap-1.5 text-xs">
           <div><span className="text-[var(--seo-muted)]">URL </span><span className="break-all font-mono text-[var(--seo-heading)]">{p.url}</span></div>
-          <div><span className="text-[var(--seo-muted)]">Title </span>{p.title || "—"}</div>
-          <div><span className="text-[var(--seo-muted)]">Meta description </span>{p.metaDescription || "—"}</div>
-          <div><span className="text-[var(--seo-muted)]">Canonical </span><span className="break-all font-mono">{p.canonicalUrl || "—"}</span></div>
-          <div><span className="text-[var(--seo-muted)]">H1 </span>{p.h1 || "—"}</div>
+          <div><span className="text-[var(--seo-muted)]">Title </span>{p.title || "-"}</div>
+          <div><span className="text-[var(--seo-muted)]">Meta description </span>{p.metaDescription || "-"}</div>
+          <div><span className="text-[var(--seo-muted)]">Canonical </span><span className="break-all font-mono">{p.canonicalUrl || "-"}</span></div>
+          <div><span className="text-[var(--seo-muted)]">H1 </span>{p.h1 || "-"}</div>
           <div className="mt-1">
             <span className="text-[var(--seo-muted)]">Issues on this page</span>
             {pageIssues === null ? (
@@ -406,7 +406,7 @@ function DetailPanel({
                     <StatusDot color={(SEVERITY_STYLE[iss.severity] ?? SEVERITY_STYLE.notice).color} />
                     <span>
                       <span className="font-medium text-[var(--seo-heading)]">{iss.issueType}</span>
-                      <span className="text-[var(--seo-text-light)]"> — {iss.recommendation}</span>
+                      <span className="text-[var(--seo-text-light)]"> - {iss.recommendation}</span>
                     </span>
                   </li>
                 ))}
@@ -431,8 +431,8 @@ function DetailPanel({
           <div><span className="text-[var(--seo-muted)]">Category </span>{i.category}</div>
           <div><span className="text-[var(--seo-muted)]">Recommendation </span>{i.recommendation}</div>
           <div>
-            <span className="text-[var(--seo-muted)]">Impact </span>{i.impactScore ?? "—"}
-            <span className="ml-4 text-[var(--seo-muted)]">Effort </span>{i.effortLevel || "—"}
+            <span className="text-[var(--seo-muted)]">Impact </span>{i.impactScore ?? "-"}
+            <span className="ml-4 text-[var(--seo-muted)]">Effort </span>{i.effortLevel || "-"}
           </div>
           {i.pageUrl ? (
             <button
@@ -455,15 +455,15 @@ function DetailPanel({
       <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--seo-muted)]">Link detail</h3>
       <div className="flex flex-col gap-1.5 text-xs">
         <div><span className="text-[var(--seo-muted)]">Target </span><span className="break-all font-mono">{l.targetUrl}</span></div>
-        <div><span className="text-[var(--seo-muted)]">Anchor text </span>{l.anchorText || "—"}</div>
+        <div><span className="text-[var(--seo-muted)]">Anchor text </span>{l.anchorText || "-"}</div>
         <div>
           <span className="text-[var(--seo-muted)]">Type </span>{LINK_TYPE_LABELS[l.linkType] || l.linkType}
-          <span className="ml-4 text-[var(--seo-muted)]">Location </span>{l.domLocation || "—"}
+          <span className="ml-4 text-[var(--seo-muted)]">Location </span>{l.domLocation || "-"}
         </div>
         <div>
           <span className="text-[var(--seo-muted)]">Follow </span>{l.isNofollow ? "Nofollow" : "Dofollow"}
           <span className="ml-4 text-[var(--seo-muted)]">Status </span>
-          {l.isBroken ? `Broken (${l.statusCode ?? "—"})` : (l.statusCode ?? "Not checked")}
+          {l.isBroken ? `Broken (${l.statusCode ?? "-"})` : (l.statusCode ?? "Not checked")}
         </div>
         {l.pageUrl ? (
           <button
@@ -536,7 +536,7 @@ async function postAnalyzeAction<T>(action: string, crawlId: number): Promise<T>
   return data as T;
 }
 
-/** Shared fetch-on-filter-change plumbing for the Pages/Issues tabs — same
+/** Shared fetch-on-filter-change plumbing for the Pages/Issues tabs - same
  * action-dispatch call, just a different action name and filter shape. */
 function useCrawlListing<T>(action: "pages" | "issues" | "links", crawlId: number, filters: Record<string, unknown>) {
   const [data, setData] = useState<T | null>(null);
@@ -843,13 +843,13 @@ function PagesTab({
                     <td className={GRID_TD}>
                       <span className="inline-flex items-center gap-1.5 tabular-nums">
                         <StatusDot color={statusColor} />
-                        {p.statusCode ?? "—"}
+                        {p.statusCode ?? "-"}
                       </span>
                     </td>
                     <td className={`${GRID_TD} max-w-[220px] truncate`} title={p.title || ""}>
-                      {p.title || "—"}
+                      {p.title || "-"}
                     </td>
-                    <td className={`${GRID_TD} tabular-nums`}>{p.seoScore != null ? Math.round(p.seoScore) : "—"}</td>
+                    <td className={`${GRID_TD} tabular-nums`}>{p.seoScore != null ? Math.round(p.seoScore) : "-"}</td>
                     <td className={GRID_TD}>
                       <div className="flex flex-wrap items-center gap-2">
                         {Object.entries(p.issueCounts).length === 0 ? (
@@ -1000,7 +1000,7 @@ function IssuesTab({
                       {issue.issueType}
                     </td>
                     <td className={GRID_TD}>{issue.category}</td>
-                    <td className={`${GRID_TD} tabular-nums`}>{issue.impactScore ?? "—"}</td>
+                    <td className={`${GRID_TD} tabular-nums`}>{issue.impactScore ?? "-"}</td>
                     <td
                       className={`${GRID_TD} max-w-[220px] truncate font-mono text-[var(--seo-muted)]`}
                       title={issue.pageUrl || undefined}
@@ -1162,9 +1162,9 @@ function LinksTab({
                     </td>
                     <td className={GRID_TD}>{LINK_TYPE_LABELS[l.linkType] || l.linkType}</td>
                     <td className={`${GRID_TD} max-w-[200px] truncate`} title={l.anchorText || ""}>
-                      {l.anchorText || "—"}
+                      {l.anchorText || "-"}
                     </td>
-                    <td className={GRID_TD}>{l.domLocation || "—"}</td>
+                    <td className={GRID_TD}>{l.domLocation || "-"}</td>
                     <td className={GRID_TD}>
                       <span className="inline-flex items-center gap-1.5" style={{ color: followColor }}>
                         <StatusDot color={followColor} />
@@ -1174,14 +1174,14 @@ function LinksTab({
                     <td className={`${GRID_TD} tabular-nums`}>
                       <span className="inline-flex items-center gap-1.5" style={{ color: statusColor }}>
                         <StatusDot color={statusColor} />
-                        {l.isBroken ? `Broken (${l.statusCode ?? "—"})` : (l.statusCode ?? "Not checked")}
+                        {l.isBroken ? `Broken (${l.statusCode ?? "-"})` : (l.statusCode ?? "Not checked")}
                       </span>
                     </td>
                     <td
                       className={`${GRID_TD} max-w-[200px] truncate font-mono text-[var(--seo-muted)]`}
                       title={l.pageUrl || undefined}
                     >
-                      {l.pageUrl || "—"}
+                      {l.pageUrl || "-"}
                     </td>
                   </tr>
                 );
@@ -1202,7 +1202,7 @@ function ScoreDelta({ label, delta }: { label: string; delta: number | null | un
     <div>
       <div className="text-xs text-[var(--seo-muted)]">{label}</div>
       <div className="text-lg font-semibold tabular-nums" style={{ color }}>
-        {delta == null ? "—" : `${delta > 0 ? "+" : ""}${delta.toFixed(1)}`}
+        {delta == null ? "-" : `${delta > 0 ? "+" : ""}${delta.toFixed(1)}`}
       </div>
     </div>
   );
@@ -1335,7 +1335,7 @@ function CompareTab({ crawlId, rootUrl }: { crawlId: number; rootUrl: string | n
             >
               {candidates.map((c) => (
                 <option key={c.id} value={c.id}>
-                  Crawl #{c.id} — {formatDate(c.finishedAt)}
+                  Crawl #{c.id} - {formatDate(c.finishedAt)}
                 </option>
               ))}
             </select>
@@ -1346,7 +1346,7 @@ function CompareTab({ crawlId, rootUrl }: { crawlId: number; rootUrl: string | n
 
         {compare && !compare.available ? (
           <p className="text-xs text-[var(--seo-muted)]">
-            Nothing to compare yet — run this crawl again to see what changed.
+            Nothing to compare yet - run this crawl again to see what changed.
           </p>
         ) : null}
 
@@ -1481,7 +1481,7 @@ function SitewideTab({ crawlId }: { crawlId: number }) {
         <h3 className="mb-3 text-sm font-semibold text-[var(--seo-heading)]">Site-wide issues</h3>
         {issues.length === 0 ? (
           <p className="text-xs text-[var(--seo-muted)]">
-            No site-wide issues found — no duplicate titles, descriptions, orphan pages, redirect loops,
+            No site-wide issues found - no duplicate titles, descriptions, orphan pages, redirect loops,
             or broken internal links across the crawl.
           </p>
         ) : (
@@ -1494,7 +1494,7 @@ function SitewideTab({ crawlId }: { crawlId: number }) {
       <Card>
         <h3 className="mb-1 text-sm font-semibold text-[var(--seo-heading)]">Crawl depth</h3>
         <p className="mb-3 text-xs text-[var(--seo-muted)]">
-          How many clicks each page sits from the homepage — deep pages are harder for users and search engines to reach.
+          How many clicks each page sits from the homepage - deep pages are harder for users and search engines to reach.
         </p>
         {graph ? (
           <>
@@ -1568,7 +1568,7 @@ function CrawlDetailInner() {
   const themesLoadedFor = useRef<number | null>(null);
 
   // Unfiltered totals for the tab-strip counts (Pages/Issues/Links), fetched
-  // once when the crawl completes — independent of whatever filters are
+  // once when the crawl completes - independent of whatever filters are
   // active inside each tab, so "Issues (58)" always reads the full count.
   const [tabCounts, setTabCounts] = useState<{ pages: number | null; issues: number | null; links: number | null }>({
     pages: null,
@@ -1688,13 +1688,13 @@ function CrawlDetailInner() {
             <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-[var(--seo-accent)]" />
             <div>
               <div className="text-sm font-semibold text-[var(--seo-heading)]">
-                {status.status === "queued" ? "Queued" : "Crawling…"} — {status.pagesCrawled} page
+                {status.status === "queued" ? "Queued" : "Crawling…"} - {status.pagesCrawled} page
                 {status.pagesCrawled === 1 ? "" : "s"} crawled
                 {status.pagesTotalEstimate ? ` of up to ${status.pagesTotalEstimate}` : ""}
               </div>
               {status.status === "queued" && pollCount >= 3 ? (
                 <p className="mt-1 text-xs text-[var(--seo-muted)]">
-                  Still queued after a few checks — make sure the worker process (
+                  Still queued after a few checks - make sure the worker process (
                   <code className="font-mono">python -m worker</code>) is running.
                 </p>
               ) : null}
@@ -1704,7 +1704,7 @@ function CrawlDetailInner() {
       ) : (
         <>
           {/* Pages/Issues browsing only makes sense once the crawl has
-              produced final results — matches the existing gate for the
+              produced final results - matches the existing gate for the
               Overview scores/thematic report, not a new restriction. */}
           <SpreadsheetTabBar
             tabs={[

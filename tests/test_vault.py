@@ -1,4 +1,4 @@
-"""Tests for worker/vault.py — the encryption primitives behind the API-key
+"""Tests for worker/vault.py - the encryption primitives behind the API-key
 vault. Uses monkeypatch.setenv/delenv so no test leaks VAULT_ENCRYPTION_KEY
 state into another test."""
 

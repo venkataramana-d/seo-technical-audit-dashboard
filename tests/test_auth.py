@@ -245,7 +245,7 @@ def test_request_password_reset_always_ok_no_leak(isolated_db):
     # existing email
     h1 = _post("request-password-reset", {"email": ADMIN_EMAIL})
     s1, b1 = _status_and_body(h1)
-    # unknown email — same ok response (no existence leak)
+    # unknown email - same ok response (no existence leak)
     h2 = _post("request-password-reset", {"email": "ghost@nope.test"})
     s2, b2 = _status_and_body(h2)
     assert s1 == 200 and b1.get("ok") is True

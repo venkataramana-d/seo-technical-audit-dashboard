@@ -23,7 +23,7 @@ prior standalone Streamlit SEO audit tool ported in on top.
   sitemap, crawl, or CSV-paste multi-input audit, formerly `new-audit`),
   results (flat list with a **Type column**), detail (per-URL drill-down), settings.
   (Session 25 removed the old collapsible domain/section hierarchy; the Results
-  table is now flat, sorted, with a Type column and Type filter — the category
+  table is now flat, sorted, with a Type column and Type filter - the category
   comes from `lib/pageCategory.ts::categorizeUrl(url, audit_type)`, keyed off the
   URL path segment (Course/Blog/Topic/Category/Tag/Type/Static/Home) with the
   backend `audit_type` as a fallback. Session 26 merged the CHECKLIST and TOP
@@ -65,7 +65,7 @@ prior standalone Streamlit SEO audit tool ported in on top.
   page re-deriving its own copy.
 - **Fix-difficulty labels:** every issue carries an `effort` field (Low/Medium/
   High) from `modules/auditor.py::_issue` (the single shared issue-dict
-  builder; `technical_checks.py` imports it rather than redefining it — don't
+  builder; `technical_checks.py` imports it rather than redefining it - don't
   reintroduce a second copy there).
   `lib/difficulty.ts` maps that to Easy/Medium/Hard (keyword fallback when
   `effort` is absent); surfaced via `DifficultyBadge` (in `components/ui.tsx`,
@@ -88,25 +88,25 @@ prior standalone Streamlit SEO audit tool ported in on top.
   SEO impact / user impact / recommended fix, and a `source` citation for
   facts that change over time (Core Web Vitals thresholds, mobile-first
   indexing) grounded in a 2026 web search (Google Search Central, web.dev).
-  `explainCommonIssue` never returns `null` — an issue with no curated match
+  `explainCommonIssue` never returns `null` - an issue with no curated match
   falls back to a generic explanation built from the issue's own
   `category`/`severity`/`recommendation` fields, so every issue has
   *something* to show. Wired into `IssueRow` (`components/ui.tsx`): clicking
   an issue row opens a `Modal` (via `HelpSection`'s modal pattern) showing
   `CommonIssueDetail` (the KB/fallback explanation) plus `FixSuggestionButton`
-  when `lib/fixSuggestable.ts::detectFixTarget` matches — NOT an inline
+  when `lib/fixSuggestable.ts::detectFixTarget` matches - NOT an inline
   expand-in-place panel. Guarded by `lib/commonIssuesKB.test.ts`.
 - **API routes are consolidated into 3 files, dispatched by an `"action"`
   field in the request** (`api/audit-pipeline.py`, `api/ai.py`, plus
-  standalone `api/export.py`) — **not** one file per endpoint. This used to
+  standalone `api/export.py`) - **not** one file per endpoint. This used to
   be 9 separate `api/*.py` files; Vercel's Python builder reinstalls +
   recompiles the entire `requirements.txt` independently for every
   `api/*.py` file at build time (~14s each, not shared), so 9 files added
-  ~2 minutes of pure dependency-install time to every deploy for no reason —
+  ~2 minutes of pure dependency-install time to every deploy for no reason -
   none of them have different dependencies, they all draw from the same
   `requirements.txt`. Consolidating to 3 cut that by ~100s. **When adding a
   new server-side endpoint, add an action to one of these two files (or
-  `api/export.py` if it's a binary/file-download response) — do NOT create a
+  `api/export.py` if it's a binary/file-download response) - do NOT create a
   new top-level `api/*.py` file**, or the build-time regression comes back.
   - `api/audit-pipeline.py` (`maxDuration` 90, the max of any action's need):
     actions `"audit"` (single-URL audit, returns `modules.auditor.audit_url()`
@@ -120,11 +120,11 @@ prior standalone Streamlit SEO audit tool ported in on top.
     `prefetchedDomainHealth`), `"pagespeed"` (PSI proxy). Each action is its
     own `_handle_*` function with its own try/except preserving the original
     per-endpoint error message; `_ACTIONS` maps `action` string → function.
-  - `api/ai.py` (`maxDuration` 30) — **AI layer** (`modules/ai_assist.py`,
+  - `api/ai.py` (`maxDuration` 30) - **AI layer** (`modules/ai_assist.py`,
     all Groq), actions `"summary"` and `"fix-suggestion"`, plus a
     plain `GET` for config-status (key-presence only, no action needed since
     it's the only `GET` in the group). **The `"chat"` action + the floating
-    `ChatWidget` were removed in Session 24** — the AI is now focused on the
+    `ChatWidget` were removed in Session 24** - the AI is now focused on the
     audit summary and personalized per-page fix drafts; do not reintroduce a
     general-purpose chatbot without discussing it. Both POST actions go through
     the shared `_chat()` HTTP helper (3x retry on 429/5xx, optional
@@ -135,7 +135,7 @@ prior standalone Streamlit SEO audit tool ported in on top.
       context_label=None)`: plain-English summary + top actions, JSON-mode
       parsed via `_parse_summary_reply` (falls back to the legacy
       numbered-list regex parse if JSON parsing fails). `context_label`
-      overrides the default "for {url}" phrasing — the Results page's
+      overrides the default "for {url}" phrasing - the Results page's
       sitewide summary passes "across N audited pages (sitewide)" with the
       aggregated issue list instead of one page's. Rendered via the shared
       `components/AiSummaryCard.tsx` on both Detail (one URL) and Results
@@ -144,13 +144,13 @@ prior standalone Streamlit SEO audit tool ported in on top.
       so reopening unchanged data doesn't re-spend an API call.
     - `"fix-suggestion"` → `suggest_fix(issue_title, page_context, api_key)`:
       drafts an actual ready-to-use replacement (e.g. a real meta
-      description) for a **well-defined set of issue types** — see
+      description) for a **well-defined set of issue types** - see
       `_FIX_TARGET_PATTERNS`/`detect_fix_target`: **title, description, H1,
       Open Graph/Twitter tags, and image alt-text** (expanded from the
       original 3 in Session 24 so more issues get a personalized, page-grounded
       draft instead of only the generic KB explanation). **Single-value targets
       (title/description/H1) use JSON mode; multi-line targets (og/alt) use PLAIN
-      TEXT** (`_JSON_FIX_TARGETS`) — forcing JSON around a multi-line Open Graph
+      TEXT** (`_JSON_FIX_TARGETS`) - forcing JSON around a multi-line Open Graph
       block / several alt lines made models nest the payload or return an empty
       `suggestion` ("didn't return a usable suggestion"), the Session 26 fix.
       `suggest_fix` also strips markdown fences (`_strip_code_fence`), de-nests a
@@ -161,9 +161,9 @@ prior standalone Streamlit SEO audit tool ported in on top.
       patterns client-side so `components/ui.tsx::IssueRow` only shows "✨
       Suggest a fix" for issues it can actually draft for, without a
       round-trip just to find out. Only wired up where a single concrete
-      page is in scope (Detail page passes `pageContext` —
+      page is in scope (Detail page passes `pageContext` -
       title/description/h1/content snippet from
-      `r.metadata`/`r.heading_detail`/`r.content.intro_paragraphs` — into
+      `r.metadata`/`r.heading_detail`/`r.content.intro_paragraphs` - into
       every `IssueRow`); there's no sitewide equivalent since a fix draft
       needs one page's real content to ground in, not an aggregate.
   - `tests/test_api_consolidation.py` covers the `_ACTIONS` dispatch tables
@@ -216,21 +216,21 @@ prior standalone Streamlit SEO audit tool ported in on top.
   that just re-rendered the top-10-by-impact issues through the same
   `IssueRow` the Issues tab already uses; folded into a "Top Issues by
   Impact" card at the top of Issues instead, plus a smaller top-3 version on
-  Overview — see `topIssues` in `app/detail/page.tsx`. Both tabs and TabBar
+  Overview - see `topIssues` in `app/detail/page.tsx`. Both tabs and TabBar
   itself now share `components/ui.tsx::TabBar`/`IssueExplanationGrid`, see
   the "Shared UI components" note below.) The Content & Images tab's Images
   card cross-links to Performance's Image SEO sub-tab (same pattern as the
   Technical tab's Mobile Responsiveness cross-link). Headings' old "H1
   Across Site" sub-tab (a cross-URL report living on a per-URL page) moved
   to the Results page as a collapsible "Sitewide H1 Report" card, next to
-  the Sitewide Summary rollup — `HeadingsView` no longer takes an
+  the Sitewide Summary rollup - `HeadingsView` no longer takes an
   `allResults` prop.
 - **Shared UI components** (`components/ui.tsx`): `TabBar` (generic tab-bar
   row, used by `LinksView`/`HeadingsView`/`PerformanceView`'s Mobile↔Image
-  SEO switch/the Detail page's top-level tabs — previously 4 byte-identical
+  SEO switch/the Detail page's top-level tabs - previously 4 byte-identical
   copies) and `IssueExplanationGrid` (the What-is-it/Why/SEO-impact/User-
   impact/Recommended-fix grid, used by `HeadingsView`/`PerformanceView`'s
-  `ImageIssueDetail`/`LinksView`'s `IssueDetail` — previously 3 independently
+  `ImageIssueDetail`/`LinksView`'s `IssueDetail` - previously 3 independently
   drifted copies, e.g. "why it matters" vs "why is it important?"). Add new
   tab switches or issue-explanation panels through these, don't hand-roll a
   new copy. `ui.tsx`'s own `CommonIssueDetail` (backing the Common Issues KB
@@ -250,7 +250,7 @@ prior standalone Streamlit SEO audit tool ported in on top.
   it). `link_auditor.py::validate_url` and `image_auditor.py::_fetch_size`
   both now route their HEAD/GET calls through `safe_request` too (previously
   each re-implemented its own manual redirect-loop, and `link_auditor.py`'s
-  didn't re-validate redirect hops at all — a real SSRF gap, since a link
+  didn't re-validate redirect hops at all - a real SSRF gap, since a link
   that passed the initial check could still 301 to an internal host).
 - `lib/checklistDefs.ts`: the **frontend mirror** of the 35 check ids/labels/
   groups in `modules/technical_audit_checklist.py`, plus a one-sentence
@@ -271,7 +271,7 @@ prior standalone Streamlit SEO audit tool ported in on top.
   explanation; used on each Technical Audit input-mode card, each checklist
   group (Crawlability/On-Page/Site Health), and (via the same `Modal`)
   `IssueRow`'s issue detail (see Common Issues KB note above). Supersedes the
-  old standalone `components/HelpDialog.tsx` popover (deleted — folded into
+  old standalone `components/HelpDialog.tsx` popover (deleted - folded into
   this shared Modal pattern, merged in from `venkataramana-work`).
 - `components/ChecklistExplainer.tsx`: the "What Technical SEO checks" card
   (all 35 checks as pills + a "when to use" note), mirroring the reference
@@ -348,11 +348,11 @@ neither model ports here as-is):
    (sitemap/sitemap-index fetch, `MAX_URL_CAP` in
    `modules/sitemap_extractor.py`), `api/audit-pipeline.py`'s "crawl" action
    (BFS link discovery, `run_full_audit=False`, `MAX_MAX_PAGES` in
-   `api/audit-pipeline.py` — a real per-page fetch unlike a sitemap's one
+   `api/audit-pipeline.py` - a real per-page fetch unlike a sitemap's one
    XML download, so it's the most time-pressured of the three against the
    90s `maxDuration`), or the client-side CSV/paste parser (no network call,
    `MAX_LIMIT` in `app/technical-audit/page.tsx`).
-   - **Bulk URL cap: 200 in production, 5000 in local dev** — shared by all
+   - **Bulk URL cap: 200 in production, 5000 in local dev** - shared by all
      three via `modules/_http.py::bulk_url_cap()` (backend) and
      `NEXT_PUBLIC_BULK_URL_LIMIT`, baked into the client bundle at build
      time by `next.config.ts` (`process.env.VERCEL ? "200" : "5000"`;
@@ -361,12 +361,12 @@ neither model ports here as-is):
      overage, because `runChunked`/`runCrawl` (below) fan a bulk audit out
      to one `POST /api/audit-pipeline` invocation per URL, and each
      invocation runs several `ThreadPoolExecutor`-backed site-health checks
-     (WHOIS/DNS/SSL/robots/sitemap/HTTP2, see `technical_checks.py`) — a
+     (WHOIS/DNS/SSL/robots/sitemap/HTTP2, see `technical_checks.py`) - a
      4000-URL crawl could spin up thousands of concurrent invocations, each
      doing real CPU-bound parsing (BeautifulSoup/lxml) on top of the
      network waits. `api/audit-pipeline.py`'s Python handlers only ever run
      on Vercel (plain `next dev` 404s on API calls, see the gotcha below),
-     so the backend cap doesn't need a local/prod split — it's always the
+     so the backend cap doesn't need a local/prod split - it's always the
      "prod" branch in practice; the frontend's local-vs-prod split exists so
      a developer can still exercise the client-side parsing/chunking logic
      with a large list locally even though there's no live backend to
@@ -393,7 +393,7 @@ Live-verified end-to-end against `https://www.edstellar.com/sitemap.xml`
 ## Favicon / metadata / own-site SEO
 The app is itself set to `noindex, nofollow` (internal tool, confirmed with
 the user) via `metadata.robots` in `app/layout.tsx` + `app/robots.ts`'s
-disallow-all — do not flip this without asking, it was an explicit choice,
+disallow-all - do not flip this without asking, it was an explicit choice,
 not an oversight. Icons (`app/icon.tsx`, `app/apple-icon.tsx`) and the Open
 Graph card (`app/opengraph-image.tsx`) are generated at build time via
 `next/og`'s `ImageResponse` (Satori), drawn as plain CSS shapes (a circle +
@@ -408,21 +408,21 @@ env vars if the deploy domain changes. The old default Next.js
 
 ## Design system (modern-SaaS, Session 23)
 - **Font:** Inter (UI) + JetBrains Mono (`.font-mono`, for URLs/values), wired via
-  `next/font/google` in `app/layout.tsx` (self-hosted at build time — do NOT add a
+  `next/font/google` in `app/layout.tsx` (self-hosted at build time - do NOT add a
   CSP allowance or a `<link>` to Google Fonts, and don't reintroduce the Arial
   stack). `--font-sans`/`--font-mono` in `globals.css` point at them.
 - **Tokens live in `app/globals.css`** (`--seo-*`, light default + `.dark`
   override): radius scale (`--seo-radius` 10px / `-lg` 14 / `-sm` 8 / `-pill` 6),
-  hairline-first elevation (`--seo-shadow-*` are intentionally subtle — a crisp
+  hairline-first elevation (`--seo-shadow-*` are intentionally subtle - a crisp
   border does the work, not a drop shadow), restrained accent (gradients are
   dialed back; `.btn-gradient` is a FLAT accent fill now, not a glow). Use the
   `.tabular-nums` utility on any numeric display (scores/counts/metrics).
-- **Icons: `components/icons.tsx`** — Lucide-style inline SVG (`currentColor`,
+- **Icons: `components/icons.tsx`** - Lucide-style inline SVG (`currentColor`,
   1.75 stroke). **Do NOT use emoji as structural icons** (they render per-OS and
   can't be themed); add a new SVG here and import it. `PageHeader` takes an
   `icon` prop; pages pass their SVG, not an emoji in the title string.
 - **Shared components** stay in `components/ui.tsx` (Card, Modal, TabBar,
-  MetricCard, badges, PageHeader) — restyle THERE, don't hand-roll a variant.
+  MetricCard, badges, PageHeader) - restyle THERE, don't hand-roll a variant.
 - The favicon/OG generators (`app/icon.tsx`, `apple-icon.tsx`,
   `opengraph-image.tsx`) draw CSS shapes at build time (Satori has no emoji
   font); they are not app UI and were intentionally left as-is.
@@ -430,7 +430,7 @@ env vars if the deploy domain changes. The old default Next.js
 ## Security headers / CSP
 `proxy.ts` sets a nonce-based Content-Security-Policy per request
 (Next.js's documented pattern: `script-src 'self' 'nonce-<random>'
-'strict-dynamic'`) — **not** a static CSP in `next.config.ts`, because App
+'strict-dynamic'`) - **not** a static CSP in `next.config.ts`, because App
 Router's streaming hydration relies on inline `<script>` tags (RSC flight
 data, and the theme-init script in `app/layout.tsx`) that a plain
 `script-src 'self'` blocks outright, silently breaking all client
@@ -446,7 +446,7 @@ need a nonce (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`,
 
 ## Env vars
 - `PSI_API_KEY` (optional): PageSpeed Insights quota
-- `GROQ_API_KEY` (optional): server-side default for the AI features — the
+- `GROQ_API_KEY` (optional): server-side default for the AI features - the
   audit **summary** and the personalized **fix suggestions** (`api/ai.py`'s
   `"summary"` / `"fix-suggestion"` actions); users can also paste their own key
   in Settings (stored in browser localStorage only)
@@ -495,10 +495,10 @@ Edstellar sitemap/pages and take 30+ seconds. Opt in with `RUN_LIVE_TESTS=1`.
   `scoring.py::calculate_seo_score`'s breakdown. `mobile_audit` was in
   `all_issues` (shown/counted/fed to the AI) but not in any scoring bucket, so
   mobile issues (missing viewport, intrusive interstitial) moved the score by 0
-  (Session 27 fix — folded into the `advanced` bucket). When adding a check
+  (Session 27 fix - folded into the `advanced` bucket). When adding a check
   module, add it to BOTH lists.
 - **`auditor._normalize_issues` backfills `impact_score` + `effort`** on every
-  `all_issues` entry (severity→default table) — some modules (e.g.
+  `all_issues` entry (severity→default table) - some modules (e.g.
   `blog_auditor`) build issue dicts inline without them, which made a
   High-severity issue sort below a Low (missing impact_score treated as 0) and
   undercounted the fix-effort chips. Don't rely on a module always setting these;
@@ -580,12 +580,12 @@ Edstellar sitemap/pages and take 30+ seconds. Opt in with `RUN_LIVE_TESTS=1`.
   `image_auditor.py::_populate_sizes` only classify 404/410/hard-5xx as a dead
   resource; 401/403 (WAF/bot-challenge), 408/429 (rate-limit), 503, and
   timeout/SSL/connection failures are "blocked"/"unknown" and excluded from the
-  broken count. Do NOT re-bucket them as broken — that was the biggest
+  broken count. Do NOT re-bucket them as broken - that was the biggest
   broken-link/image false-positive source (a live Cloudflare-protected link
   reported dead). Guarded by `tests/test_link_auditor.py`/`test_image_auditor.py`.
 - **Absence of an OPTIONAL signal is not a scored issue.** Content-freshness
   meta, a `<meta charset>` when the HTTP header already declares one, a favicon
-  `<link>` when `/favicon.ico` may exist, `alt=""` on a decorative image — these
+  `<link>` when `/favicon.ico` may exist, `alt=""` on a decorative image - these
   degrade to no-issue / Low-advisory, not a scored problem. Same for a check that
   couldn't verify (timeout on the www-alt probe, an unfetchable canonical target):
   emit nothing rather than assert a claim that may be false. This is the core
@@ -601,7 +601,7 @@ Edstellar sitemap/pages and take 30+ seconds. Opt in with `RUN_LIVE_TESTS=1`.
   course signals; a non-course `/coaching-solutions` service page had 3), so it
   was removed. Classify via URL patterns only; root path is always `general`. Do
   NOT re-add a content-signal fallback.
-- **All displayed timestamps are IST** — `lib/format.ts::formatDate` renders in
+- **All displayed timestamps are IST** - `lib/format.ts::formatDate` renders in
   `Asia/Kolkata` with a fixed `en-IN` locale. The fixed locale+zone is also what
   keeps it deterministic across the server/client render (avoids a hydration
   mismatch); don't switch it back to the viewer's `toLocaleString()`.

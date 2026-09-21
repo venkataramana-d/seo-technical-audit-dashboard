@@ -2,7 +2,7 @@
 §4: every org-scoped query must derive its org_id from the authenticated
 session, never a client-supplied id).
 
-Deployed (VERCEL) environments require a valid session and use its org — an
+Deployed (VERCEL) environments require a valid session and use its org - an
 unauthenticated request to an org-scoped endpoint gets 401. Local/dev and the
 test suite (no VERCEL, no auth infra) fall back to a single default org so the
 existing flows and pytest keep working without seeding a login.
@@ -37,7 +37,7 @@ def resolve_org_id(handler, db) -> int | None:
 
 
 def get_or_create_project(db, org_id: int, root_url: str) -> Project:
-    """Get-or-create a project scoped to (org_id, root_url) — so two orgs
+    """Get-or-create a project scoped to (org_id, root_url) - so two orgs
     crawling the same URL get separate projects rather than sharing one."""
     proj = db.execute(
         select(Project).where(Project.org_id == org_id, Project.root_url == root_url)
@@ -51,7 +51,7 @@ def get_or_create_project(db, org_id: int, root_url: str) -> Project:
 
 
 def crawl_for_org(db, crawl_id: int, org_id: int) -> Crawl | None:
-    """The crawl only if it belongs to org_id, else None (callers return 404 —
+    """The crawl only if it belongs to org_id, else None (callers return 404 -
     no existence leak between tenants)."""
     return db.execute(
         select(Crawl)

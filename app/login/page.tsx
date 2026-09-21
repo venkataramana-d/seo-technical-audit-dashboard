@@ -18,7 +18,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  // An already-authenticated user has no reason to sit on /login — send them home.
+  // An already-authenticated user has no reason to sit on /login - send them home.
   useEffect(() => {
     if (status === "authed") router.replace("/");
   }, [status, router]);

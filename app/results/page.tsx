@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAudit } from "@/lib/state/AuditContext";
-import { Card, EmptyState, PageHeader, ScoreBadge, ScoreCircle, StatusPill } from "@/components/ui";
+import { affectedHref, Card, EmptyState, looksLikeImage, looksLikeUrl, PageHeader, ScoreBadge, ScoreCircle, StatusPill } from "@/components/ui";
 import { ListChecksIcon } from "@/components/icons";
 import { ExportBar } from "@/components/ExportBar";
 import { AiSummaryCard } from "@/components/AiSummaryCard";
@@ -21,11 +21,18 @@ function pathnameOf(url: string): string {
   }
 }
 
+// Upper bound on affected-element rows rendered per expanded failing check. A
+// sitewide audit can attach hundreds of offending elements to one issue; the
+// list only needs to be a scannable sample, so we cap and show "+N more".
+const FAILING_AFFECTED_CAP = 20;
+
 /**
  * One row in the sitewide "Top failing checks" list: the issue title + a
- * "N pages" pill that expands to list the EXACT affected page URLs, each a
- * button that jumps to that page's detail view. Replaces the old flat row that
- * showed "N pages" with no way to see which pages.
+ * "N pages" pill. It expands to show, when the backend attached them, the exact
+ * offending elements as "on <page>: <value> - <detail>" (the page still links
+ * into that page's detail via onOpenUrl, and URL/image values open in a new
+ * tab). When no per-element data is present it falls back to the affected-page
+ * URL list.
  */
 function FailingIssueRow({
   issue,
@@ -35,7 +42,13 @@ function FailingIssueRow({
   onOpenUrl: (url: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const color = severityColor(issue.severity).text;
+  const affected = issue.affected || [];
+  const hasAffected = affected.length > 0;
+  const visibleAffected = showAll ? affected : affected.slice(0, FAILING_AFFECTED_CAP);
+  const hiddenAffected = affected.length - visibleAffected.length;
+
   return (
     <div className="text-sm">
       <button
@@ -55,20 +68,70 @@ function FailingIssueRow({
         </span>
       </button>
       {open ? (
-        <ul className="ml-6 mt-1 flex flex-col gap-0.5 border-l border-[var(--seo-border)] pl-3">
-          {issue.urls.map((u) => (
-            <li key={u}>
-              <button
-                type="button"
-                onClick={() => onOpenUrl(u)}
-                className="truncate text-left text-xs text-[var(--seo-accent)] hover:underline"
-                title={u}
-              >
-                {pathnameOf(u)}
-              </button>
-            </li>
-          ))}
-        </ul>
+        hasAffected ? (
+          <ul className="ml-6 mt-1 flex flex-col gap-1 border-l border-[var(--seo-border)] pl-3">
+            {visibleAffected.map((a, i) => {
+              const linkable = looksLikeUrl(a.value) || looksLikeImage(a.value);
+              const href = linkable ? affectedHref(a.value, a.url) : null;
+              return (
+                <li key={`${a.url}-${a.value}-${i}`} className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs">
+                  <span className="text-[var(--seo-muted)]">on</span>
+                  <button
+                    type="button"
+                    onClick={() => onOpenUrl(a.url)}
+                    className="max-w-[16rem] truncate text-left text-[var(--seo-accent)] hover:underline"
+                    title={a.url}
+                  >
+                    {pathnameOf(a.url)}
+                  </button>
+                  <span className="text-[var(--seo-muted)]">:</span>
+                  {href ? (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={a.value}
+                      className="min-w-0 max-w-[22rem] truncate font-mono text-[var(--seo-accent)] hover:underline"
+                    >
+                      {a.value}
+                    </a>
+                  ) : (
+                    <span title={a.value} className="min-w-0 max-w-[22rem] truncate font-mono text-[var(--seo-text)]">
+                      {a.value}
+                    </span>
+                  )}
+                  {a.detail ? <span className="text-[var(--seo-muted)]">- {a.detail}</span> : null}
+                </li>
+              );
+            })}
+            {hiddenAffected > 0 ? (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setShowAll(true)}
+                  className="text-[11px] font-medium text-[var(--seo-accent)] hover:underline"
+                >
+                  +{hiddenAffected} more
+                </button>
+              </li>
+            ) : null}
+          </ul>
+        ) : (
+          <ul className="ml-6 mt-1 flex flex-col gap-0.5 border-l border-[var(--seo-border)] pl-3">
+            {issue.urls.map((u) => (
+              <li key={u}>
+                <button
+                  type="button"
+                  onClick={() => onOpenUrl(u)}
+                  className="truncate text-left text-xs text-[var(--seo-accent)] hover:underline"
+                  title={u}
+                >
+                  {pathnameOf(u)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )
       ) : null}
     </div>
   );
@@ -335,7 +398,7 @@ export default function ResultsPage() {
       ) : null}
 
       {/* Sitewide (cross-URL) concept, moved here from the per-URL Detail
-          page's Headings tab where it was organizationally out of place —
+          page's Headings tab where it was organizationally out of place -
           a report iterating every audited URL doesn't belong on a single
           URL's drill-down page. */}
       {results.length > 1 ? (

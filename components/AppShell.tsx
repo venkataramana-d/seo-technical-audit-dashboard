@@ -17,6 +17,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/technical-audit": "New Audit",
   "/results": "Results",
   "/detail": "Results",
+  "/explorer": "Explorer",
   "/settings": "Settings",
   "/admin": "Admin",
 };
@@ -37,7 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // trigger the signed-out redirect (login + the emailed password-reset page).
   const isPublicRoute = pathname === "/login" || pathname === "/reset";
 
-  // Send signed-out users to the login screen — but only when the auth backend
+  // Send signed-out users to the login screen - but only when the auth backend
   // is actually reachable. "unavailable" means the Python API isn't running
   // (local `next dev`), where we keep the app open for frontend-only work.
   useEffect(() => {

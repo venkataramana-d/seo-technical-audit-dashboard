@@ -1,4 +1,4 @@
-"""Issue severity model & per-project overrides — 02-AUDIT-ENGINE.md §3.
+"""Issue severity model & per-project overrides - 02-AUDIT-ENGINE.md §3.
 
 Errors / Warnings / Notices, layered on top of the existing Impact (1-10) /
 Effort fields. Per Ahrefs' model, the severity of each issue *type* is a global
@@ -7,7 +7,7 @@ a Warning rather than a Notice). Defaults live here as the single source of
 truth; per-project overrides come from the issue_type_config table
 (03-DATA-MODEL-AND-API.md), keyed by org.
 
-This module is pure — the DB layer builds an {issue_type: severity} override map
+This module is pure - the DB layer builds an {issue_type: severity} override map
 from issue_type_config rows and passes it in; nothing here touches a Session.
 """
 from __future__ import annotations
@@ -20,7 +20,7 @@ WARNING = "warning"
 NOTICE = "notice"
 VALID_SEVERITIES = frozenset({ERROR, WARNING, NOTICE})
 
-# Global default severity per issue_type — mirrors what the check modules emit and
+# Global default severity per issue_type - mirrors what the check modules emit and
 # is the authoritative catalogue. Every issue_type produced anywhere in the audit
 # engine MUST appear here (guarded by test_severity.py). Grouped by source module.
 DEFAULT_SEVERITIES: dict[str, str] = {
@@ -69,7 +69,7 @@ DEFAULT_SEVERITIES: dict[str, str] = {
     "near_duplicate_content": WARNING,
 }
 
-# Fallback for an issue_type not present in the catalogue — should never happen in
+# Fallback for an issue_type not present in the catalogue - should never happen in
 # practice (the coverage test prevents it), but resolving must never crash a crawl.
 _FALLBACK_SEVERITY = WARNING
 
@@ -129,7 +129,7 @@ def apply_severity_overrides(issues: list, overrides: Mapping[str, str] | None =
 
     Works on any dataclass issue carrying `issue_type` + `severity` fields
     (modules.types.AuditIssue and modules.sitewide.SiteIssue both qualify).
-    Returns new instances (via dataclasses.replace) — never mutates the inputs —
+    Returns new instances (via dataclasses.replace) - never mutates the inputs -
     so it is safe to call before scoring without disturbing the originals.
     """
     if not overrides:

@@ -1,6 +1,6 @@
 """Unit tests for the Phase 2 site-wide audit checks (02-AUDIT-ENGINE.md §2).
 
-Pure-function tests over in-memory records — no database required.
+Pure-function tests over in-memory records - no database required.
 """
 from modules.sitewide import (
     SiteLink,

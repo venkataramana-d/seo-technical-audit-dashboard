@@ -109,7 +109,7 @@ def test_crawl_discovers_linked_pages_within_domain(mock_fetch, mock_robots_get,
 @patch("modules.crawler.fetch_page")
 def test_crawl_calls_audit_url_with_check_links_true(mock_fetch, mock_robots_get, mock_audit):
     """check_links=True unlocks the rich per-page link audit (anchor text,
-    nofollow, DOM location) that worker/crawl_service.py now persists — see
+    nofollow, DOM location) that worker/crawl_service.py now persists - see
     modules/link_auditor.py. This is pure DOM parsing (no extra HTTP
     requests), so it's always on rather than gated by a config flag."""
     mock_fetch.side_effect = lambda url: _fetch_result(url, _soup_with_links())
@@ -269,7 +269,7 @@ def test_discovery_only_mode_skips_per_page_audit(mock_fetch, mock_robots_get, m
 
 def _audit_stub_by_render_flag(raw_words, rendered_words):
     """Returns a fake audit_url whose reported word_count depends on whether
-    it was called with the (mocked) rendered prefetch vs. the raw one —
+    it was called with the (mocked) rendered prefetch vs. the raw one -
     lets tests control the raw-vs-rendered content gap precisely."""
 
     def _stub(url, check_links=True, prefetched=None, **kwargs):

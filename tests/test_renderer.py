@@ -1,4 +1,4 @@
-"""Tests for modules/renderer.py — real Playwright, no network dependency:
+"""Tests for modules/renderer.py - real Playwright, no network dependency:
 navigates to a data: URL so results are fully deterministic and offline-safe,
 while still proving render_page() executes JavaScript rather than just
 parsing raw markup (a data: URL served as-is would never contain the

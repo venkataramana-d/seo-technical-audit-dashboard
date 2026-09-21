@@ -1,4 +1,4 @@
-"""Site-wide audit checks — 02-AUDIT-ENGINE.md §2.
+"""Site-wide audit checks - 02-AUDIT-ENGINE.md §2.
 
 These are the cross-page checks that only make sense once a whole crawl exists
 (duplicate titles across pages, orphan pages, redirect loops spanning multiple
@@ -82,7 +82,7 @@ def _is_error_status(code: int | None) -> bool:
 
 
 def _indexable_html_pages(pages: list[SitePage]) -> list[SitePage]:
-    """Only 200-OK pages participate in duplicate grouping — a 301/404 sharing a
+    """Only 200-OK pages participate in duplicate grouping - a 301/404 sharing a
     blank title with another is not a meaningful 'duplicate title' finding."""
     return [p for p in pages if p.status_code == 200]
 
@@ -172,7 +172,7 @@ def duplicate_content(pages: list[SitePage]) -> list[SiteIssue]:
 
 def redirect_chains_and_loops(pages: list[SitePage]) -> list[SiteIssue]:
     """Flag redirect chains longer than 2 hops and redirect loops.
-    02-AUDIT-ENGINE.md §2 — extends the single-page redirect check across the crawl."""
+    02-AUDIT-ENGINE.md §2 - extends the single-page redirect check across the crawl."""
     issues: list[SiteIssue] = []
     for page in pages:
         chain = page.redirect_chain or []
@@ -330,7 +330,7 @@ def hreflang_reciprocity(pages: list[SitePage]) -> list[SiteIssue]:
 # ---- Crawl-depth analytics (stats, not issues) ----
 
 def crawl_depth_stats(pages: list[SitePage]) -> dict:
-    """Site-structure depth distribution — max depth, pages per depth level, and
+    """Site-structure depth distribution - max depth, pages per depth level, and
     average clicks-from-home (02-AUDIT-ENGINE.md §2). Returns analytics for the
     crawl summary, not issues."""
     depths = [p.depth for p in pages if p.depth is not None]

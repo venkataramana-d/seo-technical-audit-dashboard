@@ -1,16 +1,16 @@
 """Transactional email for self-serve password-reset links.
 
 Two backends, picked automatically:
-  1. SMTP (e.g. Gmail) — set SMTP_USER + SMTP_PASSWORD (+ optional SMTP_HOST /
+  1. SMTP (e.g. Gmail) - set SMTP_USER + SMTP_PASSWORD (+ optional SMTP_HOST /
      SMTP_PORT / SMTP_FROM). For Gmail, SMTP_PASSWORD must be a Google
-     **App Password** (16 chars, requires 2-Step Verification on the account) —
+     **App Password** (16 chars, requires 2-Step Verification on the account) -
      a normal account password will NOT work.
-  2. Resend (https://resend.com) — set RESEND_API_KEY (+ optional RESEND_FROM).
+  2. Resend (https://resend.com) - set RESEND_API_KEY (+ optional RESEND_FROM).
 
 The whole feature is optional and degrades gracefully: if neither is
 configured, `email_enabled()` is False and callers fall back to the
 admin-resolved reset flow (no email sent). Nothing here ever raises to the
-caller — email is best-effort.
+caller - email is best-effort.
 """
 from __future__ import annotations
 
@@ -102,7 +102,7 @@ def _send_via_resend(to: str, subject: str, html: str) -> dict:
 
 def send_email(to: str, subject: str, html: str) -> dict:
     """Send one email via the configured backend. Returns {"ok": bool, ...}.
-    Never raises — email is best-effort; failures are logged and reported."""
+    Never raises - email is best-effort; failures are logged and reported."""
     try:
         if _smtp_configured():
             return _send_via_smtp(to, subject, html)

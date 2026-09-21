@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # sitemap/CSV modes (200 in production, see that module for why). Unlike a
 # sitemap fetch (one XML download), BFS crawl discovery does a real HTTP GET
 # per page just to extract links, all within this one synchronous
-# request/invocation (not chunked the way per-URL audits are) — a crawl
+# request/invocation (not chunked the way per-URL audits are) - a crawl
 # anywhere near this cap risks exceeding Vercel's maxDuration window.
 DEFAULT_MAX_PAGES = 50
 MAX_MAX_PAGES = bulk_url_cap()
@@ -215,7 +215,7 @@ def _handle_pagespeed(handler, payload):
 # crawl, site-health, pagespeed) into one Vercel serverless function.
 # Each was its own isolated Python function, and Vercel's Python builder
 # reinstalls + recompiles the ENTIRE requirements.txt independently per
-# function — with 10 api/*.py files that added ~14s x 10 to every build.
+# function - with 10 api/*.py files that added ~14s x 10 to every build.
 # Consolidating the 9 non-export functions down to 2 (this one + api/ai.py)
 # cuts that to ~14s x 3, saving roughly 100s per deploy. Dispatch is by an
 # "action" field in the JSON body rather than the URL path, so callers POST
@@ -233,7 +233,7 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         # All actions perform server-side fetches and/or spend vaulted API keys,
         # so require a signed-in user (prevents anonymous quota abuse / using the
-        # crawler as an SSRF proxy) — audit finding #4.
+        # crawler as an SSRF proxy) - audit finding #4.
         try:
             require_authenticated(self)
         except AuthError as e:

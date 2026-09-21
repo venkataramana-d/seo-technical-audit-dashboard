@@ -93,7 +93,7 @@ def _aggregate_issues(all_issues: list[dict]) -> tuple[list[dict], dict]:
 
     A sitewide audit passes the SAME issue title once per affected page (e.g.
     "Missing meta description" x 180), so the raw list is mostly repeats. Feeding
-    those repeats to the model wasted the character budget on duplicates — the
+    those repeats to the model wasted the character budget on duplicates - the
     truncation then silently dropped rare-but-severe issues off the end, and the
     model couldn't state how many pages each issue hit. Aggregating by title
     keeps every DISTINCT issue in the budget, records the affected-page count,
@@ -168,7 +168,7 @@ def explain_audit(all_issues: list[dict], seo_score: float, api_key: str,
         "SEO audit issues (each already annotated with its severity, category, how "
         "many pages it affects, and the recommended fix), explain the findings "
         "clearly to a non-technical website owner. Use plain English. Be specific "
-        "and reference the ACTUAL issues and their affected-page counts — do not "
+        "and reference the ACTUAL issues and their affected-page counts - do not "
         "invent issues, numbers, or facts not present in the data. Prioritise by "
         "severity and reach (an issue on many pages matters more than one on a "
         "single page). Skip anything that passed."
@@ -176,7 +176,7 @@ def explain_audit(all_issues: list[dict], seo_score: float, api_key: str,
     scope_hint = (
         "This is a sitewide audit; the counts show how many pages each issue affects. "
         if is_sitewide else
-        "This is a SINGLE-PAGE audit — every issue below is on THIS ONE page. Do NOT "
+        "This is a SINGLE-PAGE audit - every issue below is on THIS ONE page. Do NOT "
         "claim or imply the issues affect 'multiple pages', 'several pages', or "
         "'across the site'; refer only to this page. "
     )
@@ -216,7 +216,7 @@ def explain_audit(all_issues: list[dict], seo_score: float, api_key: str,
 
 # ── Specific fix suggestions ─────────────────────────────────────────────────
 # Unlike explain_audit (a narrative summary), this drafts an actual ready-to-use
-# replacement value for a well-defined set of issue types — "add a meta
+# replacement value for a well-defined set of issue types - "add a meta
 # description" becomes a real 150-160 char draft grounded in THIS page's content,
 # not generic advice. Only supports issue titles matching _FIX_TARGET_PATTERNS;
 # anything else returns ok:False so the caller can hide the "Suggest a fix"
@@ -330,7 +330,7 @@ def suggest_fix(issue_title: str, page_context: dict, api_key: str, model: str =
     """Draft a concrete, ready-to-use fix for a metadata/H1 issue, grounded in
     the page's own content rather than invented facts.
 
-    `page_context`: {url, title, description, h1, content_snippet} — all optional.
+    `page_context`: {url, title, description, h1, content_snippet} - all optional.
 
     Returns {ok, suggestion, rationale, target, model} or {ok: False, error}.
     """
@@ -350,7 +350,7 @@ def suggest_fix(issue_title: str, page_context: dict, api_key: str, model: str =
     system_msg = (
         "You are an expert technical SEO copywriter. Given real information about a page, "
         "draft a concrete, ready-to-use replacement for the specific element requested. "
-        "Ground it in the page's actual content — do not invent facts, products, or claims "
+        "Ground it in the page's actual content - do not invent facts, products, or claims "
         "not implied by the given context. Keep the tone matching the existing copy where possible."
     )
     base_ctx = (
@@ -374,7 +374,7 @@ def suggest_fix(issue_title: str, page_context: dict, api_key: str, model: str =
         )
     else:
         user_msg = base_ctx + (
-            "Output ONLY the requested text/tags — no JSON, no markdown code fences, "
+            "Output ONLY the requested text/tags - no JSON, no markdown code fences, "
             "no commentary, preamble, or explanation."
         )
 
@@ -386,7 +386,7 @@ def suggest_fix(issue_title: str, page_context: dict, api_key: str, model: str =
         suggestion, rationale = _extract_fix_suggestion(reply, structured)
 
         # Robust fallback: if we still have nothing usable, retry once as plain
-        # text (no JSON constraint) — the most reliable shape for any target. The
+        # text (no JSON constraint) - the most reliable shape for any target. The
         # extractor still de-JSONs the retry if the model ignores the request and
         # returns JSON anyway (a genuinely empty payload then stays empty → error).
         if not suggestion:

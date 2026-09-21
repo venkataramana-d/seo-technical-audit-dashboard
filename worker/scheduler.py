@@ -1,11 +1,11 @@
-"""Phase 3 "Always-on" scheduling — a tick function, not a daemon. There's no
+"""Phase 3 "Always-on" scheduling - a tick function, not a daemon. There's no
 Redis/cloud infra here (still a single local worker process, per Phase 0's
 scope), so recurring crawls work by having the worker's own loop
 periodically call `enqueue_due_crawls()` (wired in `worker/__main__.py`)
 rather than relying on OS-level cron or a distributed scheduler.
 
 No separate `schedules` table: `CrawlConfig.schedule_cron`/`next_run_at`
-(Phase 0 + this phase) already carry everything needed — a `schedules` table
+(Phase 0 + this phase) already carry everything needed - a `schedules` table
 per `03-DATA-MODEL-AND-API.md` would just duplicate `crawl_config_id` +
 `cron_expr`.
 """
@@ -23,7 +23,7 @@ from worker.db.session import SessionLocal
 
 def enqueue_due_crawls(now: datetime | None = None) -> list[int]:
     """Finds every CrawlConfig with a schedule that's due, enqueues a fresh
-    Crawl run for each (reusing that same CrawlConfig — unlike create_crawl(),
+    Crawl run for each (reusing that same CrawlConfig - unlike create_crawl(),
     which creates a brand new config for a first/manual run), and advances
     next_run_at. Returns the new Crawl IDs, mainly useful for tests/logging."""
     now = now or datetime.now(timezone.utc)
@@ -52,7 +52,7 @@ def enqueue_due_crawls(now: datetime | None = None) -> list[int]:
             db.flush()  # need crawl.id for the Job payload below
 
             # Insert the Job row directly in this same session/transaction
-            # rather than calling worker.queue.enqueue() — that function
+            # rather than calling worker.queue.enqueue() - that function
             # opens its own session and commits, which would try to grab
             # SQLite's single writer lock while this transaction is still
             # open and deadlock ("database is locked"). Keeping it one

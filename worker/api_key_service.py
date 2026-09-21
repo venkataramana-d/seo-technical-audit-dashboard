@@ -1,7 +1,7 @@
 """Service layer for the API-key vault (Phase 5), mirroring
 worker/crawl_service.py's shape. Encryption itself lives in worker/vault.py;
 this file owns DB access and the one hard rule: `list_api_keys()` never
-returns a decrypted value — only `get_api_key()` does, for server-side use
+returns a decrypted value - only `get_api_key()` does, for server-side use
 by the existing PSI/Groq consumers (api/audit-pipeline.py, api/ai.py).
 """
 
@@ -26,7 +26,7 @@ KNOWN_PROVIDERS = ("psi", "groq", "gsc", "ga4", "openai", "anthropic", "gemini")
 
 def get_or_create_default_org(db) -> Organization:
     """Same "Local Dev" org worker/crawl_service.py's get_or_create_default_
-    project() already creates/reuses — kept as its own helper here since the
+    project() already creates/reuses - kept as its own helper here since the
     vault has no reason to touch Project at all."""
     org = db.execute(select(Organization).where(Organization.name == "Local Dev")).scalar_one_or_none()
     if org is not None:
@@ -69,7 +69,7 @@ def set_api_key(db, org_id: int, provider: str, plaintext_value: str, created_by
 
 def get_api_key(db, org_id: int, provider: str) -> str | None:
     """Decrypts for server-side use only (e.g. calling PSI/Groq on the
-    caller's behalf) — never expose this value back over an API response."""
+    caller's behalf) - never expose this value back over an API response."""
     row = db.execute(select(ApiKey).where(ApiKey.org_id == org_id, ApiKey.provider == provider)).scalar_one_or_none()
     if row is None:
         return None
@@ -83,7 +83,7 @@ def _masked_preview(decrypted_value: str) -> str:
 
 def list_api_keys(db, org_id: int) -> list[dict]:
     """Provider + created_at + a masked preview only. Decrypts internally
-    just to compute the last-4-chars preview — the decrypted value itself
+    just to compute the last-4-chars preview - the decrypted value itself
     never leaves this function."""
     rows = db.execute(select(ApiKey).where(ApiKey.org_id == org_id)).scalars().all()
     result = []
@@ -107,7 +107,7 @@ def delete_api_key(db, org_id: int, provider: str) -> bool:
 
 def get_default_org_vaulted_key(provider: str) -> str | None:
     """Convenience wrapper for the two existing PSI/Groq consumers
-    (api/audit-pipeline.py, api/ai.py) — opens its own short session, so
+    (api/audit-pipeline.py, api/ai.py) - opens its own short session, so
     callers don't need to import SessionLocal/get_or_create_default_org
     themselves just to slot the vault into their existing key-precedence
     chain (`payload.get(...) or get_default_org_vaulted_key(...) or
@@ -118,7 +118,7 @@ def get_default_org_vaulted_key(provider: str) -> str | None:
     never break (e.g. worker/dev.db not yet migrated, or unreachable)
     just because an optional, additive convenience layer couldn't reach the
     database. Any failure here is treated the same as "no vault entry
-    configured" — the existing per-request-key/env-var fallbacks still
+    configured" - the existing per-request-key/env-var fallbacks still
     apply unchanged.
     """
     try:

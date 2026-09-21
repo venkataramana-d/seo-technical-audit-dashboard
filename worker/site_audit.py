@@ -1,4 +1,4 @@
-"""Post-crawl aggregation pass (02-AUDIT-ENGINE.md §2/§5) — checks that only
+"""Post-crawl aggregation pass (02-AUDIT-ENGINE.md §2/§5) - checks that only
 make sense once a whole crawl exists to compare across pages: duplicate
 titles/descriptions/H1s/content, orphan pages, sitewide redirect chains/
 loops, broken internal links, and hreflang reciprocity. Runs once, called
@@ -15,7 +15,7 @@ so they also surface in that page's own issue list.
 `category` values below are deliberately chosen to match substrings already
 in `modules.scoring.THEMES` (e.g. "Redirects", "Internal Links") so these new
 sitewide issues sort into the right thematic tab via the existing
-`get_thematic_issues()` — no new categorization logic to maintain.
+`get_thematic_issues()` - no new categorization logic to maintain.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ def _group_duplicates(db, crawl_id: int, column) -> dict:
 
 def _detect_redirect_issues(db, crawl_id: int) -> list[dict]:
     """Per scope decision in the Phase 2 plan: detects long chains (>2 hops)
-    and self-loops from each page's own already-captured redirect hop list —
+    and self-loops from each page's own already-captured redirect hop list -
     not a full graph spanning separately-crawled pages.
 
     `chain` (Page.redirect_chain_json, built from fetch_page()'s
@@ -68,7 +68,7 @@ def _detect_redirect_issues(db, crawl_id: int) -> list[dict]:
 
 def _detect_broken_internal_links(db, crawl_id: int) -> list[dict]:
     """Per scope decision in the Phase 2 plan: a link is "broken" only if its
-    target was ALSO crawled in this same crawl and got a 4xx/5xx status —
+    target was ALSO crawled in this same crawl and got a 4xx/5xx status -
     links outside the crawl's scope/page-cap aren't separately validated
     (that needs a dedicated HTTP request per link)."""
     status_by_url = dict(db.execute(select(Page.url, Page.status_code).where(Page.crawl_id == crawl_id)).all())
@@ -83,7 +83,7 @@ def _detect_broken_internal_links(db, crawl_id: int) -> list[dict]:
         if status is not None and status >= 400:
             findings.append({"link_id": link_id, "page_id": page_id, "target_url": target_url, "status_code": status})
 
-    # Back-fill the Link rows themselves too, not just an Issue — status_code
+    # Back-fill the Link rows themselves too, not just an Issue - status_code
     # and is_broken are real Link columns from Phase 0 that Phase 1 never set.
     for finding in findings:
         db.execute(
@@ -96,12 +96,12 @@ def _detect_broken_internal_links(db, crawl_id: int) -> list[dict]:
 
 def _detect_hreflang_issues(db, crawl_id: int) -> list[dict]:
     """Reciprocity check: if page A's hreflang references page B, B should
-    reference back to A. Only checkable when B was also crawled — an
+    reference back to A. Only checkable when B was also crawled - an
     hreflang target outside the crawl can't be verified either way."""
     rows = db.execute(
         select(Page.id, Page.url, Page.hreflang_json).where(Page.crawl_id == crawl_id, Page.hreflang_json.isnot(None))
     ).all()
-    # Keep every row, including pages with an empty hreflang list — an empty
+    # Keep every row, including pages with an empty hreflang list - an empty
     # list still means "this page was crawled and checked," which is a
     # different, findable case from "target wasn't crawled at all" (a plain
     # `if tags` filter here would wrongly conflate the two: [] is falsy).

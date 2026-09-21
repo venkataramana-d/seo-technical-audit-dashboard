@@ -1,9 +1,9 @@
-"""Authentication core (Python port of web/lib/auth.ts) —
+"""Authentication core (Python port of web/lib/auth.ts) -
 05-INFRASTRUCTURE-AND-OPS.md §4: every API query must scope by an org_id
 derived from the authenticated session, never a client-supplied id.
 
 Dependency-free by design: passwords use hashlib.scrypt, sessions are
-stateless HMAC-SHA256-signed cookies — no bcrypt / jwt / auth libs. The live
+stateless HMAC-SHA256-signed cookies - no bcrypt / jwt / auth libs. The live
 tool's backend is Python serverless functions, so both signing and verifying
 happen here; a revocable server-side session store can replace the stateless
 token later without changing the api/*.py call sites (require_user_id).
@@ -49,7 +49,7 @@ ROLE_USER = "user"
 def is_admin_email(email: str) -> bool:
     return email.strip().lower() == ADMIN_EMAIL
 
-# scrypt cost parameters (interop not required — Python signs and verifies).
+# scrypt cost parameters (interop not required - Python signs and verifies).
 _SCRYPT_N = 16384
 _SCRYPT_R = 8
 _SCRYPT_P = 1
@@ -66,7 +66,7 @@ class AuthError(Exception):
 
 def dev_mode() -> bool:
     """True ONLY in an explicit local dev or test context. Any deployed host is
-    treated as production — even one that doesn't set VERCEL — so the auth
+    treated as production - even one that doesn't set VERCEL - so the auth
     fallbacks fail closed rather than open (audit finding #1). Recognised dev
     signals: no VERCEL, plus either a pytest run or APP_ENV=development/test/local."""
     if os.environ.get("VERCEL"):
@@ -80,7 +80,7 @@ def _auth_secret() -> str:
     s = os.environ.get("AUTH_SECRET")
     if s and len(s) >= 16:
         return s
-    # Fail closed everywhere except an explicit local dev/test context — never
+    # Fail closed everywhere except an explicit local dev/test context - never
     # fall back to a public constant on a real deployment (audit finding #1).
     if not dev_mode():
         raise AuthError(500, "AUTH_SECRET must be set (>= 16 chars)")
@@ -307,7 +307,7 @@ _dummy_hash: str | None = None
 
 
 def login(db, email: str, password: str) -> User | None:
-    """Return the user on valid credentials, else None (no existence leak — the
+    """Return the user on valid credentials, else None (no existence leak - the
     no-such-user path still runs a scrypt verify against a dummy hash so its
     response time matches the wrong-password path, closing the timing oracle)."""
     global _dummy_hash
@@ -333,7 +333,7 @@ def primary_org_id(db, user_id: int) -> int | None:
 # Admin user management + password reset (admin-resolved, no email service)
 # --------------------------------------------------------------------------- #
 def list_users(db) -> list[dict]:
-    """Every user with their role — for the admin portal's Users screen."""
+    """Every user with their role - for the admin portal's Users screen."""
     rows = db.execute(
         select(User.id, User.email, User.created_at, Membership.role)
         .join(Membership, Membership.user_id == User.id, isouter=True)
@@ -377,7 +377,7 @@ def create_email_reset_token(db, email: str, ttl_seconds: int = 3600) -> str | N
     """For the self-serve EMAIL reset path: if the email matches a user, create a
     pending request carrying a hashed, time-limited token and return the RAW
     token (to embed in the emailed link). Returns None if no such user (caller
-    still responds ok — no existence leak). Only the SHA-256 hash is stored."""
+    still responds ok - no existence leak). Only the SHA-256 hash is stored."""
     import datetime as _dt
 
     email = (email or "").strip().lower()
@@ -444,7 +444,7 @@ def create_password_reset_request(db, email: str) -> None:
         )
     )
     if existing is not None:
-        return  # already pending — don't pile up duplicates
+        return  # already pending - don't pile up duplicates
     db.add(PasswordResetRequest(email=email, user_id=user_id, status="pending"))
     db.commit()
 
@@ -472,7 +472,7 @@ def list_password_reset_requests(db, status: str = "pending") -> list[dict]:
 
 def resolve_password_reset_request(db, request_id: int, admin_user_id: int) -> dict:
     """Resolve a reset request by setting a fresh temporary password on the
-    target user. Returns {ok, tempPassword, email} — the temp password is
+    target user. Returns {ok, tempPassword, email} - the temp password is
     returned exactly once for the admin to share; it is never stored in
     plaintext. Raises AuthError(404) if the request or its user is gone."""
     import datetime as _dt
@@ -484,7 +484,7 @@ def resolve_password_reset_request(db, request_id: int, admin_user_id: int) -> d
     if req is None or req.status != "pending":
         raise AuthError(404, "reset request not found or already resolved")
     if req.user_id is None:
-        # No account for that email — mark resolved so it leaves the queue.
+        # No account for that email - mark resolved so it leaves the queue.
         req.status = "resolved"
         req.resolved_at = now
         req.resolved_by = admin_user_id or None

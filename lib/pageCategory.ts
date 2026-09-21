@@ -1,5 +1,5 @@
 // Classify an audited URL into a human page-category ("Type" column on the
-// Results table). Primary signal is the first URL path segment (reliable — most
+// Results table). Primary signal is the first URL path segment (reliable - most
 // sites organise by directory: /course/…, /blog/…, /topic/…, /tag/…); the
 // backend's own `audit_type` (course/blog/general, from content + URL) is a
 // secondary fallback. This replaces the old domain/section hierarchy on the
@@ -48,7 +48,7 @@ export function categorizeUrl(url: string, auditType?: string): string {
   if (mapped) return mapped;
 
   // Content-derived fallback (backend page-type) when the URL segment isn't a
-  // recognised directory — a course/blog page on a non-standard path.
+  // recognised directory - a course/blog page on a non-standard path.
   if (auditType === "course") return "Course";
   if (auditType === "blog") return "Blog";
 

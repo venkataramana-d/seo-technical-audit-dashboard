@@ -8,7 +8,7 @@ import { AppShell } from "@/components/AppShell";
 import { themeInitScript } from "@/components/ThemeToggle";
 
 // Inter is the canonical modern-SaaS UI face (Linear/Vercel-family). next/font
-// self-hosts the files at build time — no runtime request to Google, so it does
+// self-hosts the files at build time - no runtime request to Google, so it does
 // not need a CSP allowance. `font-display: swap` avoids invisible text.
 const inter = Inter({
   subsets: ["latin"],
@@ -72,14 +72,14 @@ export default async function RootLayout({
       lang="en"
       className={`h-full antialiased ${inter.variable} ${jetbrainsMono.variable}`}
       // themeInitScript sets the theme class/attribute on <html> before React
-      // hydrates, so the server and client markup differ by design — suppress
+      // hydrates, so the server and client markup differ by design - suppress
       // the resulting (expected) hydration warning on this element only.
       suppressHydrationWarning
     >
       <head>
         {/* Browsers strip the `nonce` attribute from the DOM after applying the
             CSP (a security measure), so the client reads nonce="" while the
-            server rendered the real per-request nonce from proxy.ts — a
+            server rendered the real per-request nonce from proxy.ts - a
             well-known false-positive hydration mismatch. suppressHydrationWarning
             silences it; the script itself is applied correctly (CSP allows the
             nonce, the theme initializes). */}

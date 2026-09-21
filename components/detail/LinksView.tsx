@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
-import { Card, IssueExplanationGrid, MetricCard, Modal, TabBar } from "@/components/ui";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Card, IssueExplanationGrid, locateAndHighlight, MetricCard, Modal, TabBar } from "@/components/ui";
 import { downloadCsv } from "@/lib/format";
 import {
   anchorTextDistribution,
@@ -67,10 +67,38 @@ interface LinkFilterPreset {
   type?: TypeFilter;
 }
 
-export function LinksView({ result }: { result: AuditResult }) {
+export function LinksView({
+  result,
+  focusValue,
+  focusSeq,
+}: {
+  result: AuditResult;
+  /** A link target the Detail page wants revealed (jump-to-element). */
+  focusValue?: string;
+  /** Bumps each time a jump is requested, re-triggering even for the same value. */
+  focusSeq?: number;
+}) {
   const results = useMemo(() => [result], [result]);
   const [tab, setTab] = useState<Tab>("Overview");
   const [linkFilter, setLinkFilter] = useState<LinkFilterPreset>({});
+
+  // Jump-to-element: when the Detail page requests a focus, switch to the Links
+  // sub-tab (where the row-level table lives) and clear any preset filter so the
+  // target isn't filtered out. The actual scroll + highlight happens in
+  // LinkTable, which owns the search/pagination the row lives under. setState is
+  // wrapped in requestAnimationFrame so it isn't called synchronously in the
+  // effect body (repo rule: react-hooks/set-state-in-effect).
+  const lastFocusSeq = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (focusSeq == null || !focusValue) return;
+    if (lastFocusSeq.current === focusSeq) return;
+    lastFocusSeq.current = focusSeq;
+    const raf = requestAnimationFrame(() => {
+      setTab("Links");
+      setLinkFilter({});
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [focusSeq, focusValue]);
 
   const internal = useMemo(
     () => flattenLinks(results, "internal").map((l) => ({ ...l, __kind: "internal" as const })),
@@ -316,6 +344,8 @@ export function LinksView({ result }: { result: AuditResult }) {
           showSource={results.length > 1}
           initialFilter={linkFilter}
           homepageUrl={homepageUrl}
+          focusValue={focusValue}
+          focusSeq={focusSeq}
         />
       ) : null}
 
@@ -449,11 +479,15 @@ function LinkTable({
   showSource,
   initialFilter,
   homepageUrl,
+  focusValue,
+  focusSeq,
 }: {
   links: (LinkEntry & { __kind: "internal" | "external" })[];
   showSource: boolean;
   initialFilter: LinkFilterPreset;
   homepageUrl?: string;
+  focusValue?: string;
+  focusSeq?: number;
 }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialFilter.type || "all");
@@ -469,6 +503,32 @@ function LinkTable({
   const [activeLink, setActiveLink] = useState<
     (LinkEntry & { __kind: "internal" | "external"; __priority: number }) | null
   >(null);
+
+  // Jump-to-element target: setting search to the focused URL guarantees the
+  // matching row lands on the first page (search is a plain URL substring
+  // filter), then we scroll to + highlight it. setState/DOM reads run inside
+  // timers (not the effect body) to satisfy react-hooks/set-state-in-effect and
+  // to let the filtered table re-render before we query for the row.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastFocusSeq = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (focusSeq == null || !focusValue) return;
+    if (lastFocusSeq.current === focusSeq) return;
+    lastFocusSeq.current = focusSeq;
+    const t = setTimeout(() => {
+      setSearch(focusValue);
+      setTypeFilter("all");
+      setFollowFilter("all");
+      setHealthFilter("all");
+      setCategoryFilter("all");
+      setLocationFilter("all");
+      setStatusFilter("all");
+      setPage(0);
+      // Let React re-render the filtered rows, then reveal the match.
+      setTimeout(() => locateAndHighlight(containerRef.current, focusValue), 90);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [focusSeq, focusValue]);
 
   const statusCodes = useMemo(() => {
     const codes = new Set<number>();
@@ -592,7 +652,7 @@ function LinkTable({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" ref={containerRef}>
       <Card>
         <div className="flex flex-wrap items-center gap-3">
           <input
@@ -763,6 +823,7 @@ function LinkTable({
               return (
                 <tr
                   key={i}
+                  data-locate-value={l.url}
                   onClick={() => setActiveLink(l)}
                   className="cursor-pointer border-b border-[var(--table-row-border)] transition-shadow hover:shadow-sm"
                   style={{ backgroundColor: `${rowColor}0d`, borderLeft: `3px solid ${rowColor}` }}

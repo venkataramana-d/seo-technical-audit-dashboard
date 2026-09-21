@@ -28,6 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/technical-audit", icon: ScanIcon, label: "New Audit" },
   { href: "/site-crawls", icon: GlobeIcon, label: "Site Crawls" },
   { href: "/results", icon: ListChecksIcon, label: "Results" },
+  { href: "/explorer", icon: ScanIcon, label: "Explorer" },
   { href: "/settings", icon: SettingsIcon, label: "Settings" },
 ];
 
@@ -40,7 +41,7 @@ function resolveActiveHref(pathname: string): string {
 }
 
 /**
- * Persistent left rail — the workspace chrome. Rendered on a dark surface
+ * Persistent left rail - the workspace chrome. Rendered on a dark surface
  * (--seo-sidebar-*) regardless of app theme so it reads as a distinct frame
  * around the light/dark content column. `onNavigate` lets the mobile drawer
  * close itself after a link is tapped.

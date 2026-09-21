@@ -1,11 +1,11 @@
-"""Phase 5 API-key vault endpoint — GET lists configured providers (masked
+"""Phase 5 API-key vault endpoint - GET lists configured providers (masked
 only, per worker/api_key_service.py's one hard rule), POST actions
 set/delete/test a provider's credential. Same GET+action-dispatch shape as
 api/ai.py.
 
 Talks straight to worker/api_key_service.py + worker/db (same DB file the
 worker process reads/writes), exactly like api/crawls.py already does for
-the crawl platform — no separate network layer.
+the crawl platform - no separate network layer.
 """
 
 import logging
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 # 04-FRONTEND-DESIGN.md asks for a "Test Connection" per provider; only these
 # two have existing integration code to validate against today (PSI/Groq are
-# the providers this app actually calls) — the rest can be saved/deleted but
+# the providers this app actually calls) - the rest can be saved/deleted but
 # not real-connectivity-tested yet, stated explicitly rather than faked.
 _TEST_URL = "https://example.com"
 
@@ -71,7 +71,7 @@ def _handle_set(handler, payload):
     except ValueError as e:
         send_json(handler, 400, {"ok": False, "error": str(e)})
     except RuntimeError as e:
-        # vault.py's clear "VAULT_ENCRYPTION_KEY not set" error — surface it
+        # vault.py's clear "VAULT_ENCRYPTION_KEY not set" error - surface it
         # as-is rather than a generic 500, it tells the operator exactly
         # what to fix.
         send_json(handler, 500, {"ok": False, "error": str(e)})
@@ -104,7 +104,7 @@ def _handle_test(handler, payload):
         if tester is None:
             send_json(handler, 200, {
                 "ok": False,
-                "error": f"Test Connection isn't available for {provider!r} yet — only psi/groq are supported.",
+                "error": f"Test Connection isn't available for {provider!r} yet - only psi/groq are supported.",
             })
             return
 
@@ -132,7 +132,7 @@ _ACTIONS = {
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # Lists configured providers + masked previews — sign-in required so it
+        # Lists configured providers + masked previews - sign-in required so it
         # isn't publicly enumerable (audit finding #2).
         try:
             require_authenticated(self)

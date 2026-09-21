@@ -1,4 +1,4 @@
-"""DB-backed job queue — stands in for Redis+Celery/arq during local dev.
+"""DB-backed job queue - stands in for Redis+Celery/arq during local dev.
 
 Same two-function shape (`enqueue()` / a worker that pulls and processes)
 described in `03-DATA-MODEL-AND-API.md` §3, so swapping to a real queue later
@@ -47,7 +47,7 @@ def _claim_next_job(db) -> Job | None:
     """Atomically claim the oldest queued job: a single UPDATE ... RETURNING
     keyed off a correlated subquery, so two workers polling concurrently
     can't both claim the same row. Works unchanged on SQLite 3.35+ and
-    Postgres — no dialect-specific SQL.
+    Postgres - no dialect-specific SQL.
     """
     next_id_subq = (
         select(Job.id).where(Job.status == "queued").order_by(Job.id).limit(1).scalar_subquery()
@@ -73,7 +73,7 @@ class Worker:
         """Claim and process a single queued job, if one exists. Returns
         True if a job was processed, False if the queue was empty. The
         caller drives the loop (see worker/__main__.py, which also
-        interleaves a periodic scheduler check between calls) — kept this
+        interleaves a periodic scheduler check between calls) - kept this
         way so tests don't need an interruptible loop either."""
         with SessionLocal() as db:
             job = _claim_next_job(db)

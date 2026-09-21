@@ -1,16 +1,16 @@
-"""Site-structure / crawl-depth graph — 02-AUDIT-ENGINE.md §2 and the Crawl Path
+"""Site-structure / crawl-depth graph - 02-AUDIT-ENGINE.md §2 and the Crawl Path
 report from 08-SCREAMING-FROG-TECHNICAL-REFERENCE.md / 00-PLAN Phase 4.5.
 
 Builds a directed graph from the crawl's internal links and reports:
   - clicks-from-home for every page (true shortest path via BFS, not the
-    crawler's discovery order — a page can be discovered deep but actually be
+    crawler's discovery order - a page can be discovered deep but actually be
     one click from the homepage),
   - max depth, pages per depth level, average depth,
   - pages unreachable from the homepage by internal links,
   - the shortest click-path from the homepage to any URL (Crawl Path report),
   - an actionable finding for pages buried deeper than a recommended click depth.
 
-Pure module — operates on sitewide.SiteLink records + the set of crawled page
+Pure module - operates on sitewide.SiteLink records + the set of crawled page
 URLs, no DB. The crawl-finalization glue supplies the normalized root URL.
 """
 from __future__ import annotations

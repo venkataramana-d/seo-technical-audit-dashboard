@@ -1,4 +1,4 @@
-"""Tests for worker/tasks.py — proves the job handlers are transparent
+"""Tests for worker/tasks.py - proves the job handlers are transparent
 wrappers around the existing modules/*.py functions, not a reimplementation.
 `audit_url` itself is monkeypatched so this test doesn't depend on network
 access; the point being verified is that the handler passes payload through

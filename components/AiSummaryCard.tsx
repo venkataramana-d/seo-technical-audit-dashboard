@@ -11,7 +11,7 @@ import type { Issue } from "@/lib/types";
  * actions via Groq (modules/ai_assist.py::explain_audit), cached per
  * `cacheKey` in AuditContext so reopening unchanged data doesn't re-spend an
  * API call. Used on both the Detail page (one URL) and the Results page's
- * Sitewide Summary (aggregated across every audited URL) — same UI, same
+ * Sitewide Summary (aggregated across every audited URL) - same UI, same
  * caching behavior, different `cacheKey`/`issues`/`contextLabel`.
  */
 export function AiSummaryCard({
@@ -96,7 +96,7 @@ export function AiSummaryCard({
               ))}
             </ul>
           ) : null}
-          <p className="text-xs text-[var(--seo-muted)]">Cached — click Generate to refresh.</p>
+          <p className="text-xs text-[var(--seo-muted)]">Cached - click Generate to refresh.</p>
         </div>
       ) : null}
     </Card>

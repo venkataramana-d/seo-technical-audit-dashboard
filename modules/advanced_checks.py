@@ -266,7 +266,7 @@ def analyze_technical_seo(soup, url: str, page_size_bytes: int, response_time: f
     # connection hints, NOT rendered resources, and do NOT trigger a browser
     # mixed-content warning. Counting them flagged a Critical "Mixed Content" on
     # the extremely common case of an HTTPS page whose canonical still points to
-    # http:// — a false positive. Only real resource rels count.
+    # http:// - a false positive. Only real resource rels count.
     _RESOURCE_LINK_RELS = {"stylesheet", "preload", "modulepreload", "prefetch", "import"}
     mixed_content_count = 0
     if is_https and soup:
@@ -336,7 +336,7 @@ def analyze_technical_seo(soup, url: str, page_size_bytes: int, response_time: f
 
     # ── Core Web Vitals estimates ─────────────────────────────────────────
     # `response_time` is a SINGLE live measurement (requests' time-to-headers)
-    # and carries network jitter — two audits of the same unchanged page can
+    # and carries network jitter - two audits of the same unchanged page can
     # differ by hundreds of ms, which used to flip the TTFB severity across a
     # 500ms boundary and change the SEO SCORE run-to-run (a reproducibility bug).
     # The bands are widened so ordinary jitter no longer flips the severity, the
@@ -497,7 +497,7 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
     charset_value = (charset_tag.get("charset") or "").upper() if charset_tag else ""
 
     # A charset sent in the HTTP `Content-Type: text/html; charset=utf-8` response
-    # header is fully valid and browser-honored — a <meta charset> is then just a
+    # header is fully valid and browser-honored - a <meta charset> is then just a
     # nicety, not a requirement. The prior check looked only at the markup, so any
     # page relying on the (very common) server-sent header was wrongly flagged
     # "Missing Charset Declaration".
@@ -643,7 +643,7 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
     if not has_favicon:
         # No <link rel="icon"> tag, but browsers (and Google's SERP favicon)
         # fall back to a /favicon.ico at the site root, which many sites serve
-        # without any <link> tag — so this is "not declared", not confirmed
+        # without any <link> tag - so this is "not declared", not confirmed
         # "Missing". Wording reflects that to avoid a false claim.
         issues.append({
             "issue": "No Favicon Link Declared",

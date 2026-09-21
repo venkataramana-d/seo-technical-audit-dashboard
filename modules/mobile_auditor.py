@@ -526,7 +526,7 @@ def _build_issues(checks, summary):
     # Only flag when there is NO <nav> at all (status "fail"). The "warning" case
     # (a <nav> exists but no hamburger/toggle class was found) is a false positive:
     # a nav that collapses purely via CSS media queries, or uses an SVG/aria-label
-    # button with no matching class name, is fully mobile-friendly — static HTML
+    # button with no matching class name, is fully mobile-friendly - static HTML
     # simply can't see the responsive CSS.
     if check_map.get("mobile_nav", {}).get("status") == "fail":
         issues.append({
@@ -575,7 +575,7 @@ def _build_issues(checks, summary):
         })
 
     # NOTE: the "images missing width/height" issue is intentionally NOT emitted
-    # here — modules/image_auditor.py already emits a more precise, counted
+    # here - modules/image_auditor.py already emits a more precise, counted
     # version ("N image(s) missing width/height dimensions", same category /
     # severity / CLS recommendation). Emitting both double-counted one problem
     # against the score and showed two near-identical rows. The mobile

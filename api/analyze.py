@@ -1,8 +1,8 @@
-"""Site-wide analysis API — the "brains" that run on-demand over an already
+"""Site-wide analysis API - the "brains" that run on-demand over an already
 persisted crawl (Vercel-only architecture: no always-on worker).
 
 Same one-file / action-dispatch convention as api/audit-pipeline.py and
-api/crawls.py — POST {"action": ..., "crawlId": N}. Reads pages/links straight
+api/crawls.py - POST {"action": ..., "crawlId": N}. Reads pages/links straight
 from the same DB (worker/db/session.py) and feeds the pure analysis modules
 folded in from the rebuild (modules/sitewide.py, modules/crawl_graph.py,
 modules/near_duplicate.py). Nothing here writes by default; pass
@@ -111,7 +111,7 @@ def _load_crawl_data(db, crawl_id: int):
 
 
 def _site_issue_dto(si) -> dict:
-    """Full JSON for a SiteIssue — to_explanation_json() alone drops the
+    """Full JSON for a SiteIssue - to_explanation_json() alone drops the
     type/severity/impact fields the UI needs, so serialize the whole record."""
     return {
         "issueType": si.issue_type,

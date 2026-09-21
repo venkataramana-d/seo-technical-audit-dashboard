@@ -38,7 +38,7 @@ def decode_request_body(raw_body: bytes, content_encoding: str | None) -> dict:
     body = raw_body or b"{}"
     if (content_encoding or "").lower() == "gzip":
         # Bounded decompression: read at most the cap + 1 byte, then reject if
-        # it overflows — never materialize an unbounded decompressed payload.
+        # it overflows - never materialize an unbounded decompressed payload.
         with gzip.GzipFile(fileobj=io.BytesIO(body)) as gz:
             body = gz.read(_MAX_DECOMPRESSED_BYTES + 1)
         if len(body) > _MAX_DECOMPRESSED_BYTES:

@@ -1,4 +1,4 @@
-"""Unit tests for the AI Agent subsystems (Phase 6) — pure, FakeLLM, no DB."""
+"""Unit tests for the AI Agent subsystems (Phase 6) - pure, FakeLLM, no DB."""
 import json
 
 from modules.content_agent import (

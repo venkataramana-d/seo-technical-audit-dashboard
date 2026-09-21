@@ -7,7 +7,7 @@ import { SearchIcon } from "@/components/icons";
 
 // Jumps straight to a previously-audited URL's Detail page from anywhere in
 // the app. Filters the in-memory results already held by AuditContext (no
-// network call) — same data the Results page's own search box filters.
+// network call) - same data the Results page's own search box filters.
 export function GlobalSearch({ onNavigate }: { onNavigate?: () => void }) {
   const router = useRouter();
   const { results, setSelectedUrlIndex } = useAudit();

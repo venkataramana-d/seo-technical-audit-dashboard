@@ -1,4 +1,4 @@
-"""Tests for worker/crawl_service.py + worker/tasks.py's handle_crawl_start —
+"""Tests for worker/crawl_service.py + worker/tasks.py's handle_crawl_start -
 verifies DB persistence, severity mapping, and Crawl status transitions
 without network access. modules.crawler.crawl_site's own BFS logic is
 already covered by tests/test_crawler.py; this tests the persistence/
@@ -32,7 +32,7 @@ def _fake_crawl_site_success(config, on_result=None, progress_callback=None):
                     "metadata": {"title": "Home", "description": "Homepage desc"},
                     "headings": {"h1_texts": ["Welcome"]},
                     # "https://example.com/about/" (trailing slash) exercises
-                    # persist_result()'s normalize_url() call — should land in
+                    # persist_result()'s normalize_url() call - should land in
                     # the DB as "https://example.com/about", matching the
                     # about page's own (already-normalized) Page.url below.
                     "internal_links": {

@@ -1,17 +1,17 @@
-"""Near-duplicate content detection — 02-AUDIT-ENGINE.md §2 (Screaming Frog's
+"""Near-duplicate content detection - 02-AUDIT-ENGINE.md §2 (Screaming Frog's
 "near duplicates": shingling + similarity above a threshold, default ~90%).
 
 Two-stage design, mirroring how SF (and the standard MinHash/LSH literature)
 does it so it stays cheap on large crawls:
 
-  1. Candidate generation — MinHash signatures + LSH banding bucket pages that
+  1. Candidate generation - MinHash signatures + LSH banding bucket pages that
      are *probably* similar, avoiding an O(n^2) comparison of every page pair.
-  2. Confirmation — exact Jaccard similarity on the shingle sets of only the
+  2. Confirmation - exact Jaccard similarity on the shingle sets of only the
      candidate pairs decides what actually clears the threshold. Exact (not the
      MinHash estimate) so the result is deterministic and the threshold means
      exactly what it says.
 
-Pure module — no DB, no network. The crawl-finalization glue supplies each
+Pure module - no DB, no network. The crawl-finalization glue supplies each
 page's normalized content text (or a precomputed signature); results come back
 as sitewide.SiteIssue clusters for the caller to persist.
 
@@ -36,7 +36,7 @@ _LSH_BANDS = 32
 _LSH_ROWS = 4  # bands * rows must equal num_perm
 _MERSENNE_PRIME = (1 << 61) - 1
 
-# Deterministic MinHash coefficients — fixed seed so signatures are stable across
+# Deterministic MinHash coefficients - fixed seed so signatures are stable across
 # runs/processes (a page's signature must be comparable to one computed earlier).
 _rng = random.Random(0xC0FFEE)
 _COEFFS = [
@@ -94,7 +94,7 @@ def _minhash(shingles: set[int], num_perm: int = DEFAULT_NUM_PERM) -> tuple[int,
 
 
 def estimated_jaccard(sig_a: tuple[int, ...], sig_b: tuple[int, ...]) -> float:
-    """MinHash estimate of Jaccard — used only for LSH candidate scoring / the
+    """MinHash estimate of Jaccard - used only for LSH candidate scoring / the
     signature-only path, not for the exact confirmation step."""
     if not sig_a or not sig_b or len(sig_a) != len(sig_b):
         return 0.0
@@ -212,7 +212,7 @@ def near_duplicate_content(
     threshold: float = DEFAULT_THRESHOLD,
     **kwargs,
 ) -> list[SiteIssue]:
-    """Near-duplicate clusters as crawl-level SiteIssues — one issue per cluster
+    """Near-duplicate clusters as crawl-level SiteIssues - one issue per cluster
     of pages with >= threshold similar content (exact Jaccard on page text)."""
     return [
         _cluster_to_issue(cluster, threshold)
@@ -225,7 +225,7 @@ def near_duplicate_from_signatures(
     threshold: float = DEFAULT_THRESHOLD,
 ) -> list[SiteIssue]:
     """Near-duplicate detection from stored per-page MinHash signatures (the
-    storage-friendly path used at crawl finalization — no page text needed).
+    storage-friendly path used at crawl finalization - no page text needed).
 
     `signatures` maps url -> {"minhash": [...], "shingle_count": n} as persisted
     in pages.content_signature_json. Uses LSH for candidate generation on large

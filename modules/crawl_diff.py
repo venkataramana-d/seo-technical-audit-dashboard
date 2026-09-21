@@ -1,4 +1,4 @@
-"""Crawl comparison / diff engine — 02-AUDIT-ENGINE.md §6, the foundation for
+"""Crawl comparison / diff engine - 02-AUDIT-ENGINE.md §6, the foundation for
 Phase 3 "Always-on" scheduled auditing (00-PLAN-OVERVIEW.md Phase 3).
 
 Compares two crawls of the same project and reports which issues are new, fixed,
@@ -152,7 +152,7 @@ def _matches(condition: dict, diff: CrawlDiff) -> str | None:
 
 def evaluate_alert_rules(diff: CrawlDiff, rules: list) -> list[TriggeredAlert]:
     """Evaluate alert rules against a diff. Each rule exposes `condition_json`
-    (dict) and `channel`, plus optional `id` — the SQLAlchemy AlertRule model or
+    (dict) and `channel`, plus optional `id` - the SQLAlchemy AlertRule model or
     any object/tuple with those attributes."""
     triggered: list[TriggeredAlert] = []
     for rule in rules:

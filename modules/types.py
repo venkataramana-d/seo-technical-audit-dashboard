@@ -1,4 +1,4 @@
-"""Shared types for the per-page audit pipeline — 02-AUDIT-ENGINE.md §1."""
+"""Shared types for the per-page audit pipeline - 02-AUDIT-ENGINE.md §1."""
 from dataclasses import dataclass, field
 
 
@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 class AuditIssue:
     issue_type: str
     category: str  # one of the 11 scoring categories, see scoring.py
-    severity: str  # error|warning|notice — 02-AUDIT-ENGINE.md §3
+    severity: str  # error|warning|notice - 02-AUDIT-ENGINE.md §3
     impact_score: int  # 1-10
     effort_level: str  # low|medium|high
     what: str

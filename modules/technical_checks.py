@@ -129,7 +129,7 @@ def check_sitemap(url: str) -> dict:
     # sitemap only at /sitemap_index.xml, so probing /sitemap.xml alone reported
     # "Sitemap.xml Not Found" on sites that DO have a valid sitemap. (A robots.txt
     # `Sitemap:` directive can declare an arbitrary path too; a full resolver
-    # lives in modules/sitemap_extractor.py — this lightweight health check just
+    # lives in modules/sitemap_extractor.py - this lightweight health check just
     # covers the two standard paths.)
     r = None
     fetch_failed = False
@@ -381,7 +381,7 @@ def check_readability(text: str) -> dict:
     fk_grade = round(textstat.textstat.flesch_kincaid_grade(text), 1)
     ease = round(textstat.textstat.flesch_reading_ease(text), 1)
 
-    # A Flesch-Kincaid grade above ~19 is not real reading difficulty — the
+    # A Flesch-Kincaid grade above ~19 is not real reading difficulty - the
     # scale tops out around 18 (post-graduate). A higher number means the input
     # is NOT prose: nav labels, button text, and marketing fragments without
     # sentence punctuation inflate the average-sentence-length term. Treat that
@@ -430,7 +430,7 @@ def check_content_freshness(http_headers: dict, soup) -> dict:
         # meta nor a Last-Modified header (normal for dynamic/CDN-served pages).
         # Absence of an OPTIONAL freshness signal is not a defect, so degrade
         # gracefully (available: False, no scored issue) like every other
-        # optional check here — emitting a scored "No Content-Freshness Signals"
+        # optional check here - emitting a scored "No Content-Freshness Signals"
         # issue flagged nearly every page.
         return {"available": False, "issues": []}
 
@@ -508,7 +508,7 @@ def check_canonical_loop(url: str, soup) -> dict:
     # Only warn about a real multi-hop chain, i.e. one where we CONFIRMED the
     # canonical target has its own differing canonical (verified_hops >= 1). A
     # single cross-URL canonical (A -> B) whose target B we couldn't fetch
-    # (SSRF-blocked, timeout) is not a chain — the prior code emitted a bogus
+    # (SSRF-blocked, timeout) is not a chain - the prior code emitted a bogus
     # "Canonical Chain (2 Hops)" for that normal, common case.
     if len(visited) > 1 and verified_hops >= 1:
         chain = " → ".join(visited)
@@ -537,7 +537,7 @@ def check_www_redirect(url: str) -> dict:
     host_no_www = domain[4:] if has_www else domain
     if not has_www and host_no_www.count(".") != 1:
         # Non-www AND not a plain 2-label apex (e.g. blog.example.com,
-        # example.co.uk) — can't reliably derive the www counterpart, so skip
+        # example.co.uk) - can't reliably derive the www counterpart, so skip
         # rather than probe a host that likely doesn't exist.
         return {"consolidated": True, "issues": []}
 

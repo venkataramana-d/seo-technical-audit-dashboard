@@ -137,7 +137,12 @@ THIN_THRESHOLD  = 300
 SLOW_THRESHOLD  = 3.0   # seconds
 
 
-def _issue(issue, category, severity, recommendation, impact_score=5, effort="Medium"):
+def _issue(issue, category, severity, recommendation, impact_score=5, effort="Medium", affected=None):
+    """Build one issue. `affected` is the list of exact offending elements (the
+    "WHERE"): each item is {"value": <the element, e.g. an image src / link
+    target / heading text>, "detail": <what's wrong with it, optional>}. This is
+    what lets the UI point the user straight at the specific image/link/element,
+    not just say "N pages have X"."""
     return {
         "issue": issue,
         "category": category,
@@ -145,6 +150,7 @@ def _issue(issue, category, severity, recommendation, impact_score=5, effort="Me
         "recommendation": recommendation,
         "impact_score": impact_score,
         "effort": effort,
+        "affected": affected or [],
     }
 
 
@@ -247,11 +253,13 @@ def analyze_metadata(soup, url):
     elif title_len < MIN_TITLE_LEN:
         issues.append(_issue(f"Meta Title Too Short ({title_len} chars)", "Metadata", "Warning",
             f"Expand the meta title to at least {MIN_TITLE_LEN} characters for better SERP visibility.",
-            impact_score=6, effort="Low"))
+            impact_score=6, effort="Low",
+            affected=[{"value": title, "detail": f"{title_len} chars"}]))
     elif title_len > MAX_TITLE_LEN:
         issues.append(_issue(f"Meta Title Too Long ({title_len} chars)", "Metadata", "Warning",
             f"Shorten meta title to under {MAX_TITLE_LEN} characters to avoid SERP truncation.",
-            impact_score=6, effort="Low"))
+            impact_score=6, effort="Low",
+            affected=[{"value": title, "detail": f"{title_len} chars"}]))
 
     # Description
     desc_tag = soup.find("meta", attrs={"name": re.compile(r"^description$", re.I)})
@@ -265,11 +273,13 @@ def analyze_metadata(soup, url):
     elif desc_len < MIN_DESC_LEN:
         issues.append(_issue(f"Meta Description Too Short ({desc_len} chars)", "Metadata", "Warning",
             f"Expand description to at least {MIN_DESC_LEN} characters.",
-            impact_score=5, effort="Low"))
+            impact_score=5, effort="Low",
+            affected=[{"value": description, "detail": f"{desc_len} chars"}]))
     elif desc_len > MAX_DESC_LEN:
         issues.append(_issue(f"Meta Description Too Long ({desc_len} chars)", "Metadata", "Warning",
             f"Shorten description to under {MAX_DESC_LEN} characters.",
-            impact_score=5, effort="Low"))
+            impact_score=5, effort="Low",
+            affected=[{"value": description, "detail": f"{desc_len} chars"}]))
 
     # OG tags
     og_title = soup.find("meta", property="og:title")
@@ -283,7 +293,8 @@ def analyze_metadata(soup, url):
     if missing_og:
         issues.append(_issue(f"Missing Open Graph Tags: {', '.join(missing_og)}", "Metadata", "Medium",
             "Add all og: meta tags to control how this page appears when shared on social media.",
-            impact_score=4, effort="Low"))
+            impact_score=4, effort="Low",
+            affected=[{"value": tag, "detail": "missing"} for tag in missing_og[:50]]))
 
     return {
         "title": title, "title_length": title_len, "has_title": bool(title),
@@ -311,7 +322,8 @@ def analyze_headings(soup):
     elif h1_count > 1:
         issues.append(_issue(f"Multiple H1 Tags ({h1_count})", "Headings", "High",
             "Keep only one H1 per page. Move additional headings to H2 or H3.",
-            impact_score=7, effort="Low"))
+            impact_score=7, effort="Low",
+            affected=[{"value": t, "detail": "H1"} for t in h1_texts[:50]]))
 
     if len(h2_tags) == 0 and h1_count > 0:
         issues.append(_issue("No H2 Tags Found", "Headings", "Warning",
@@ -325,14 +337,17 @@ def analyze_headings(soup):
         all_headings.append(level)
 
     skipped = False
+    skipped_seq = ""
     for i in range(1, len(all_headings)):
         if all_headings[i] > all_headings[i - 1] + 1:
             skipped = True
+            skipped_seq = f"H{all_headings[i - 1]} → H{all_headings[i]}"
             break
     if skipped:
         issues.append(_issue("Skipped Heading Levels (e.g. H1→H3)", "Headings", "Low",
             "Use sequential heading levels (H1→H2→H3) without skipping levels for proper document structure.",
-            impact_score=3, effort="Low"))
+            impact_score=3, effort="Low",
+            affected=[{"value": skipped_seq, "detail": "skipped level"}]))
 
     return {
         "h1_count": h1_count, "h2_count": len(h2_tags),
@@ -354,7 +369,9 @@ def analyze_canonical(soup, url):
     elif len(canonical_tags) > 1:
         issues.append(_issue(f"Multiple Canonical Tags ({len(canonical_tags)})", "Canonical", "Critical",
             "Remove duplicate canonical tags: only one should exist per page.",
-            impact_score=8, effort="Low"))
+            impact_score=8, effort="Low",
+            affected=[{"value": t.get("href", "").strip(), "detail": "canonical"}
+                      for t in canonical_tags[:50]]))
     else:
         href = canonical_tags[0].get("href", "").strip()
         # Resolve relative canonical to absolute
@@ -372,7 +389,8 @@ def analyze_canonical(soup, url):
             if not is_self_ref:
                 issues.append(_issue("Canonical Points to Different URL", "Canonical", "Warning",
                     f"Verify this is intentional. Points to: {canonical_url[:80]}",
-                    impact_score=6, effort="Low"))
+                    impact_score=6, effort="Low",
+                    affected=[{"value": canonical_url, "detail": f"expected self-reference: {url}"}]))
 
     return {
         "canonical_url": canonical_url,
@@ -395,11 +413,13 @@ def analyze_indexability(soup, http_headers=None):
             is_indexable = False
             issues.append(_issue("Page Set to Noindex", "Indexability", "Critical",
                 "Remove 'noindex' from meta robots if this page should appear in search results.",
-                impact_score=10, effort="Low"))
+                impact_score=10, effort="Low",
+                affected=[{"value": robots_content, "detail": "meta robots"}]))
         if "nofollow" in tokens:
             issues.append(_issue("Meta Robots: Nofollow Active", "Indexability", "Warning",
                 "Review whether nofollow on meta robots is intentional: it prevents link equity flow.",
-                impact_score=5, effort="Low"))
+                impact_score=5, effort="Low",
+                affected=[{"value": robots_content, "detail": "meta robots"}]))
 
     # X-Robots-Tag response header: noindex is already flagged by
     # modules/advanced_checks.py::analyze_http_headers; only add the
@@ -413,7 +433,8 @@ def analyze_indexability(soup, http_headers=None):
         if "nofollow" in tokens:
             issues.append(_issue("X-Robots-Tag Header: Nofollow Active", "Indexability", "Warning",
                 "Review whether nofollow on the X-Robots-Tag header is intentional.",
-                impact_score=5, effort="Low"))
+                impact_score=5, effort="Low",
+                affected=[{"value": x_robots_tag, "detail": "X-Robots-Tag header"}]))
 
     return {
         "robots_meta": robots_content, "x_robots_tag": x_robots_tag,
@@ -437,22 +458,26 @@ def analyze_url_structure(url, response_time=0.0, final_url=None):
     if url_len > 115:
         issues.append(_issue(f"URL Too Long ({url_len} chars)", "URL Structure", "Warning",
             "Keep URLs under 115 characters for better crawlability and usability.",
-            impact_score=4, effort="Medium"))
+            impact_score=4, effort="Medium",
+            affected=[{"value": url, "detail": f"{url_len} chars"}]))
 
     if re.search(r"[A-Z]", path):
         issues.append(_issue("URL Contains Uppercase Letters", "URL Structure", "Low",
             "Use lowercase-only URLs to avoid duplicate content issues.",
-            impact_score=3, effort="Low"))
+            impact_score=3, effort="Low",
+            affected=[{"value": url, "detail": "uppercase in path"}]))
 
     if parsed.query:
         issues.append(_issue("URL Contains Query Parameters", "URL Structure", "Warning",
             "Use clean, parameter-free URLs where possible. Query strings can cause duplicate content and are harder to remember/share.",
-            impact_score=4, effort="Medium"))
+            impact_score=4, effort="Medium",
+            affected=[{"value": parsed.query, "detail": "query string"}]))
 
     if urlparse(final_url or url).scheme != "https":
         issues.append(_issue("Not Using HTTPS", "URL Structure", "Critical",
             "Migrate to HTTPS. Google uses HTTPS as a ranking signal and it's required for trust.",
-            impact_score=9, effort="High"))
+            impact_score=9, effort="High",
+            affected=[{"value": final_url or url, "detail": "not https"}]))
 
     return {
         "length": url_len, "slug": slug, "path": path,
@@ -481,16 +506,19 @@ def analyze_content(soup, html: str = "", base_url: str = ""):
     if word_count < THIN_THRESHOLD:
         issues.append(_issue(f"Thin Content ({word_count} words)", "Content", "High",
             f"Expand content to at least {THIN_THRESHOLD} words. Thin content rarely ranks well.",
-            impact_score=8, effort="High"))
+            impact_score=8, effort="High",
+            affected=[{"value": f"{word_count} words", "detail": f"below {THIN_THRESHOLD}"}]))
     elif word_count < 600:
         issues.append(_issue(f"Below Recommended Word Count ({word_count} words)", "Content", "Warning",
             "Aim for 600+ words to cover the topic comprehensively and outrank competitors.",
-            impact_score=5, effort="High"))
+            impact_score=5, effort="High",
+            affected=[{"value": f"{word_count} words", "detail": "below 600"}]))
 
     if content_ratio < 10:
         issues.append(_issue(f"Low Content-to-HTML Ratio ({content_ratio}%)", "Content", "Warning",
             "Reduce bloated HTML markup and increase meaningful text content.",
-            impact_score=3, effort="Medium"))
+            impact_score=3, effort="Medium",
+            affected=[{"value": f"{content_ratio}%", "detail": "below 10%"}]))
 
     # Extract beginning and ending paragraphs for content preview
     para_tags = [
@@ -511,7 +539,7 @@ def analyze_content(soup, html: str = "", base_url: str = ""):
         "word_count": word_count, "reading_time": reading_time,
         "content_ratio": content_ratio, "is_thin": word_count < THIN_THRESHOLD,
         # Normalized visible-text extraction (script/style/nav/footer/header/
-        # aside already stripped above) — exposed so a caller can hash it for
+        # aside already stripped above) - exposed so a caller can hash it for
         # sitewide exact-duplicate-content detection (worker/site_audit.py)
         # without re-parsing the page.
         "text": text.strip(),
@@ -545,18 +573,21 @@ def analyze_images(soup):
     if missing_alt:
         issues.append(_issue(f"{len(missing_alt)} Image(s) Missing Alt Attribute", "Images", "High",
             "Add descriptive alt text to every image for accessibility and image SEO.",
-            impact_score=7, effort="Low"))
+            impact_score=7, effort="Low",
+            affected=[{"value": src, "detail": "no alt attribute"} for src in missing_alt[:50]]))
     if empty_alt:
         # alt="" is the CORRECT, WCAG-recommended markup for purely decorative
         # images, so this is advisory (Low), not a confirmed problem: only act on
         # it for images that actually convey meaning.
         issues.append(_issue(f"{len(empty_alt)} Image(s) with Empty Alt Text (verify decorative)", "Images", "Low",
             "Empty alt='' is correct for decorative images. Add a description only for images that convey meaning.",
-            impact_score=2, effort="Low"))
+            impact_score=2, effort="Low",
+            affected=[{"value": src, "detail": 'alt=""'} for src in empty_alt[:50]]))
     if poor_alt:
         issues.append(_issue(f"{len(poor_alt)} Image(s) with Generic Alt Text", "Images", "Low",
             "Replace generic alt text like 'image.jpg' with descriptive phrases that include keywords.",
-            impact_score=3, effort="Low"))
+            impact_score=3, effort="Low",
+            affected=[{"value": src, "detail": f'alt="{alt}"'} for src, alt in poor_alt[:50]]))
 
     return {
         "total_images": total,
@@ -576,7 +607,9 @@ def analyze_redirect_chain(redirect_history):
             f"Redirect Chain Detected ({len(redirect_history)} hops)",
             "Redirects", "Warning",
             "Fix redirect chains: each hop wastes crawl budget and dilutes link equity. Link directly to the final URL.",
-            impact_score=6, effort="Medium"))
+            impact_score=6, effort="Medium",
+            affected=[{"value": hop, "detail": f"hop {n}"}
+                      for n, hop in enumerate(redirect_history[:50], start=1)]))
     return {
         "chain_length": len(redirect_history),
         "chain": redirect_history,
@@ -588,7 +621,7 @@ def detect_page_type(url, soup):
     """Classify a page as course / blog / general so the per-page-type auditors
     (course_auditor, blog_auditor) only run where they apply. Getting this wrong
     fires page-type-specific checks ("Missing Course Overview / CTA", "Missing
-    Course Schema") on pages that aren't that type — a false positive.
+    Course Schema") on pages that aren't that type - a false positive.
     """
     url_lower = url.lower()
     path = urlparse(url_lower).path.strip("/")
@@ -604,7 +637,7 @@ def detect_page_type(url, soup):
     # (counting words like "curriculum"/"enroll") was measurably UNreliable on
     # real data: on edstellar, a genuine course page (/course/…-training) had
     # only 2 course signals while a non-course service page (/coaching-solutions)
-    # had 3 — so the fallback classified backwards, firing per-course-page checks
+    # had 3 - so the fallback classified backwards, firing per-course-page checks
     # ("Missing Course Overview / CTA / Schema") on service pages. Real course
     # and blog pages have clear URL patterns (edstellar: 1,697 /course/… pages,
     # /blog/… posts), which the checks below catch reliably. When a site has no

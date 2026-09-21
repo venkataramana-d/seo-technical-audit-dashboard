@@ -1,7 +1,7 @@
-# 🗺️ Product Roadmap — toward a Screaming-Frog / SEMrush-class audit tool
+# 🗺️ Product Roadmap - toward a Screaming-Frog / SEMrush-class audit tool
 
 **Goal:** turn our per-URL / small-crawl auditor into a tool that produces
-**correct, complete, and *actionable* results** at real site scale — where every
+**correct, complete, and *actionable* results** at real site scale - where every
 issue tells you **what** is wrong, **where** exactly (deep-link to the page and
 the offending element), **why** it matters, and **how** to fix it (ideally
 one-click).
@@ -30,10 +30,10 @@ current baseline, and lays out a phased plan. Companion docs:
 - **Outputs:** ~300 issue checks, reports, bulk exports, XML sitemap generation,
   visualizations (crawl tree, force-directed graph), scheduling, CLI/headless.
 
-### SEMrush Site Audit — the issue-presentation model (what we mirror)
+### SEMrush Site Audit - the issue-presentation model (what we mirror)
 - **Overview:** Site Health 0–100 (Errors weigh > Warnings; Notices don't count;
   score is relative to *checks*, and **fixing all instances of one check lifts
-  it most** — frequency-weighted), Errors/Warnings/Notices counters with trend,
+  it most** - frequency-weighted), Errors/Warnings/Notices counters with trend,
   crawled-pages breakdown, thematic report cards, **Top Issues** (priority ×
   affected-page count).
 - **Issue list is issue-centric:** one row per issue type phrased as **"N pages
@@ -45,7 +45,7 @@ current baseline, and lays out a phased plan. Companion docs:
   **the actual offending value per row** (broken target URL + status code;
   colliding duplicate titles; the specific hreflang/markup value). Columns adapt
   per check type.
-- **Workflow:** Hide/Restore (ignore an issue or page — also removes it from the
+- **Workflow:** Hide/Restore (ignore an issue or page - also removes it from the
   score), **Send to Trello / Zapier (Jira/Asana/…)**. "Fixed" is detected
   automatically by **re-crawl** (Compare Crawls shows Fixed/New columns +
   a Progress graph).
@@ -83,7 +83,7 @@ fix workflow (mark-fixed/ignore/send-to-task).
 
 ## 3. ⭐ Issue Intelligence & Navigation (the priority workstream)
 
-This is the "make issues actionable" requirement — modeled on SEMrush's
+This is the "make issues actionable" requirement - modeled on SEMrush's
 drill-down and better where we can be. Target UX:
 
 **3.1 Issue-centric list** (per crawl)
@@ -195,15 +195,15 @@ Ordered so each phase unlocks the next; **P0 + P1 deliver the core of your ask.*
 
 ---
 
-## 7. The one decision to unblock P0 — where the crawler runs
+## 7. The one decision to unblock P0 - where the crawler runs
 
 Vercel functions cap at 60–90s and can't run a long crawl. Options (cheapest → most robust):
 
-1. **GitHub Actions batch runner** — free, no timeout, repo already endorses it;
+1. **GitHub Actions batch runner** - free, no timeout, repo already endorses it;
    great for on-demand / scheduled large crawls. No always-on server, no live stream.
-2. **Always-on worker** (Railway / Render / Fly ≈ free–$5/mo) — enables
+2. **Always-on worker** (Railway / Render / Fly ≈ free–$5/mo) - enables
    real-time streaming + scheduled crawls. **Recommended.**
-3. **Oracle Cloud Free VM** — truly free 24/7, more setup.
+3. **Oracle Cloud Free VM** - truly free 24/7, more setup.
 
 **Recommendation:** P0 on an **always-on worker (Railway)** for real-time
 crawling, with **GitHub Actions** as the fallback for very large batch crawls.
@@ -222,5 +222,5 @@ crawling, with **GitHub Actions** as the fallback for very large batch crawls.
    in the curated KB, and cache it.
 
 This gets you a real full-site crawl with click-through-to-the-exact-problem
-issues — the heart of the "correct, detailed, actionable results" goal — before
+issues - the heart of the "correct, detailed, actionable results" goal - before
 layering on data depth, AI-PR fixes, integrations, and the analyst workbench.

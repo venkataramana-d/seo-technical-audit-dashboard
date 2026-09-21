@@ -1,4 +1,4 @@
-"""Tests for api/crawls.py — the first-slice frontend API (list/create/
+"""Tests for api/crawls.py - the first-slice frontend API (list/create/
 status/thematic/trend). Follows tests/test_api_consolidation.py's pattern
 for loading a hyphen-free api/*.py file via importlib and driving do_POST
 with a MagicMock-based fake BaseHTTPRequestHandler, combined with the
@@ -68,7 +68,7 @@ def _seed_crawl(session_factory, *, status="completed", health_score=80.0, seo_s
                  project_id=None, finished_at=None) -> int:
     """Creates a new org/project by default; pass an existing `project_id`
     (e.g. from a prior _seed_crawl call) to add a second crawl to the same
-    project — needed for the "compare" action's tests, which diff two
+    project - needed for the "compare" action's tests, which diff two
     crawls of one project."""
     with session_factory() as db:
         if project_id is None:
@@ -120,7 +120,7 @@ def test_finalize_requires_crawl_id(isolated_db):
 
 
 def _seed_user_org(session_factory, email: str):
-    """A user + their own org + one crawl — returns (user_id, crawl_id)."""
+    """A user + their own org + one crawl - returns (user_id, crawl_id)."""
     with session_factory() as db:
         user = User(email=email, password_hash=hash_password("pw12345678"))
         db.add(user); db.flush()

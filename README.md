@@ -1,7 +1,7 @@
 # 🔍 SEO Technical Audit Dashboard
 
-An enterprise-grade SEO technical auditing tool — inspired by SEMrush, Ahrefs,
-Ubersuggest, and "SEO Meta in 1 Click" — built as a **Next.js** frontend with
+An enterprise-grade SEO technical auditing tool - inspired by SEMrush, Ahrefs,
+Ubersuggest, and "SEO Meta in 1 Click" - built as a **Next.js** frontend with
 **Python serverless functions** on **Vercel**, backed by a **Neon Postgres**
 database, with **accounts, roles, and password reset** (email via Gmail SMTP).
 
@@ -19,10 +19,10 @@ session-by-session history see [`PROJECT_LOG.md`](PROJECT_LOG.md).
 ## 1. What it is
 
 You enter a URL (or a sitemap / a crawl seed / a list of URLs) and the app runs
-a full technical SEO audit — metadata, headings, canonical, indexability, links,
+a full technical SEO audit - metadata, headings, canonical, indexability, links,
 content, images, structured data, mobile-friendliness, site health (SSL, DNS,
 robots, sitemap), performance (PageSpeed), and page-type-specific checks
-(course / blog) — then scores it 0–100 across weighted categories and gives
+(course / blog) - then scores it 0–100 across weighted categories and gives
 prioritized, explained fixes. Results can be exported to CSV / Excel / PDF / JSON.
 
 It is a **multi-user tool**: a single shared workspace with an **admin** and any
@@ -58,7 +58,7 @@ number of **user** accounts, login/logout, self-service password change, and
   one serverless invocation per URL (chunks of 200) so no single function
   exceeds Vercel's timeout, with resumable IndexedDB checkpoints. (A separate
   always-on **worker** + GitHub Actions batch runner exist in `worker/` for true
-  large-scale server-side crawling — see [§9](#9-large-scale-crawling-worker).)
+  large-scale server-side crawling - see [§9](#9-large-scale-crawling-worker).)
 - **Auth** is stateless: scrypt password hashing + HMAC-signed session cookies
   (no external auth library). Every org-scoped query derives its `org_id` from
   the session, never from the client.
@@ -115,7 +115,7 @@ Unified internal + external link table (type, follow, health, HTTP status, DOM
 location), per-link issue explanations (what/why/impact/fix), priority scoring,
 duplicate-anchor detection, missing `noopener`/`noreferrer` detection, bulk
 export/copy/open. The **body-content preview** renders a page's real paragraphs
-with links highlighted — **sanitized with DOMPurify** before rendering.
+with links highlighted - **sanitized with DOMPurify** before rendering.
 
 ### Advanced technical checks
 SERP preview, social-card preview, JSON-LD schema detection, mobile-friendliness
@@ -123,7 +123,7 @@ SERP preview, social-card preview, JSON-LD schema detection, mobile-friendliness
 title/description/H1 detection.
 
 ### Site health
-Domain age (WHOIS), SSL expiry, DNS (SPF/DMARC/MX — informational only),
+Domain age (WHOIS), SSL expiry, DNS (SPF/DMARC/MX - informational only),
 robots.txt, sitemap.xml validity, readability, content freshness, canonical-loop
 detection, www/non-www consistency, HTTP/2 support.
 
@@ -198,15 +198,15 @@ pip install -r requirements-dev.txt   # for tests
 python -m playwright install chromium # one-time, only if you use JS rendering
 ```
 
-### Option A — Frontend only (`next dev`)
+### Option A - Frontend only (`next dev`)
 ```bash
 npm run dev            # http://localhost:3000
 ```
 The Python `/api/*.py` functions **do not run** under plain `next dev` (they need
-Vercel's runtime), so API calls return 404 — expected for UI-only work. The app
+Vercel's runtime), so API calls return 404 - expected for UI-only work. The app
 stays usable (auth treats the backend as "unavailable" and doesn't gate).
 
-### Option B — Full stack (`vercel dev`)
+### Option B - Full stack (`vercel dev`)
 ```bash
 npx vercel login              # one-time, interactive (browser)
 npx vercel link               # link this folder to the Vercel project
@@ -226,7 +226,7 @@ python -m alembic upgrade head
 # Against Neon (use the UNPOOLED/direct connection string):
 DATABASE_URL="postgresql://…neon.tech/neondb?sslmode=require" python -m alembic upgrade head
 ```
-> Migrations are **not** run by the Vercel build — run `alembic upgrade head`
+> Migrations are **not** run by the Vercel build - run `alembic upgrade head`
 > against Neon manually after adding a migration.
 
 ---
@@ -249,7 +249,7 @@ CI: [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs frontend
 ```
 ├── app/                     # Next.js App Router pages
 │   ├── login/  reset/        #   auth + emailed-reset landing
-│   ├── admin/                #   admin portal (users, resets) — admin only
+│   ├── admin/                #   admin portal (users, resets) - admin only
 │   ├── settings/             #   change password, theme, API-key vault
 │   ├── technical-audit/      #   run single / sitemap / crawl / CSV audits
 │   ├── results/  detail/     #   results list + per-URL drill-down
@@ -280,9 +280,9 @@ CI: [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs frontend
 
 Vercel serverless caps each function at 60–90s, so it cannot run a long
 site-wide crawl in one request. Two paths exist for scale:
-- **Browser-orchestrated** bulk audits (implemented) — the tab drives one
+- **Browser-orchestrated** bulk audits (implemented) - the tab drives one
   invocation per URL, resumable via IndexedDB.
-- **`worker/`** — an always-on background worker + DB job queue + BFS crawler,
+- **`worker/`** - an always-on background worker + DB job queue + BFS crawler,
   designed to run on a host like Railway/Render or as a **GitHub Actions batch
   runner** (no Vercel timeout), writing results to Neon. See
   [`worker/README.md`](worker/README.md).
@@ -307,9 +307,9 @@ org-scoping the API-key vault for a future multi-org setup.
 
 ---
 
-## 11. Changelog — what was done
+## 11. Changelog - what was done
 
-### This round (Sept 2026) — auth, email reset, security & UX hardening
+### This round (Sept 2026) - auth, email reset, security & UX hardening
 - **Local + cloud setup:** Python venv, dependencies, connected **Neon** via the
   Vercel integration, ran all migrations; verified the full stack on the live URL.
 - **Fixed a missing dependency:** added `cssselect` (the CSS-selector extraction
@@ -360,7 +360,7 @@ If an AI or a new developer is picking this up: **this README is the map.** Then
    client-orchestrated crawl model, the auth `dev_mode()` behavior, the
    Vercel-function consolidation, etc.).
 2. Read [`PROJECT_LOG.md`](PROJECT_LOG.md) for the full session history.
-3. Run `pytest -q` and `npm run build` before changing anything — they are the
+3. Run `pytest -q` and `npm run build` before changing anything - they are the
    safety net. The Python `/api` only runs under `vercel dev` or on Vercel;
    tests exercise the modules directly.
 

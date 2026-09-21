@@ -1,9 +1,9 @@
-"""LLM client for the AI Agent subsystems — 09-AI-AGENT-SUBSYSTEMS.md §5.
+"""LLM client for the AI Agent subsystems - 09-AI-AGENT-SUBSYSTEMS.md §5.
 
 A thin provider-agnostic interface so agents (QA, Content, ...) can be unit-
 tested against a FakeLLM with no network. The real client uses the Anthropic
 Messages API with the org's vaulted key (Phase 5). The `anthropic` package is
-imported lazily inside the real client, so this module — and the whole worker —
+imported lazily inside the real client, so this module - and the whole worker -
 imports fine without it; only a live agent run with a configured key needs it.
 
 Model policy (per the claude-api guidance): default to `claude-opus-4-8`.
@@ -47,7 +47,7 @@ class FakeLLM:
 
 
 class AnthropicLLM:
-    """Real client — Anthropic Messages API. `anthropic` imported lazily."""
+    """Real client - Anthropic Messages API. `anthropic` imported lazily."""
 
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL, max_tokens: int = 1024):
         self._api_key = api_key
@@ -92,7 +92,7 @@ _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 def parse_json_object(text: str) -> dict | None:
     """Tolerantly extract the first JSON object from an LLM response (models
-    sometimes wrap JSON in prose or code fences). Returns None on failure —
+    sometimes wrap JSON in prose or code fences). Returns None on failure -
     callers must treat a None as 'no usable answer', never crash the crawl."""
     if not text:
         return None

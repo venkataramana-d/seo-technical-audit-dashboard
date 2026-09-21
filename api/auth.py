@@ -1,4 +1,4 @@
-"""Auth API — signup / login / logout / me. Same one-file/action-dispatch
+"""Auth API - signup / login / logout / me. Same one-file/action-dispatch
 convention as the other api/*.py handlers, but POST actions may also set or
 clear the session cookie, so responses go through a small cookie-aware
 responder instead of modules._http.send_json.
@@ -306,7 +306,7 @@ _ACTIONS = {
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # "me" — current session user, or null.
+        # "me" - current session user, or null.
         try:
             uid = get_session_user_id(self)
             if uid is None:

@@ -80,7 +80,7 @@ def _is_keyword_stuffed(alt_text):
     """Keyword stuffing is REPEATING keywords to game ranking, not merely long
     or descriptive alt text. The prior heuristic flagged any alt over 100 chars,
     which mislabeled long *descriptive* alt (e.g. "Team collaborating in a modern
-    office during a corporate leadership training workshop") as stuffed — a false
+    office during a corporate leadership training workshop") as stuffed - a false
     positive seen across the site. Detect real repetition instead: a content word
     repeated 3+ times, or low lexical diversity on a multi-word alt.
     """
@@ -393,7 +393,7 @@ def _populate_sizes(images, max_size_checks, base_url=""):
             # Only a genuinely dead resource is "broken": 404/410 or a hard 5xx.
             # 401/403 (hotlink protection / WAF), 429 (rate limit), 503
             # (transient), and timeout/SSL/connection failures (status_code None)
-            # mean "could not verify from a bot" — not that the image is missing
+            # mean "could not verify from a bot" - not that the image is missing
             # in a real browser. Marking those broken flagged perfectly visible
             # CDN/hotlink-protected images as "fails to load".
             img["is_broken"] = code in (404, 410) or (
@@ -462,10 +462,25 @@ def _compute_summary(images, check_sizes):
     }
 
 
-def _build_issues(summary, check_sizes):
-    """Build list of SEO issue dicts from summary counts."""
+def _build_issues(summary, check_sizes, images=None):
+    """Build list of SEO issue dicts from summary counts.
+
+    `images` is the per-image list (each has `url` + a `issues` label list); we
+    use it to attach `affected` - the exact image src(s) behind each issue - so
+    the UI can point the user at the specific offending images, not just a count.
+    """
     issues = []
     n = summary
+    imgs = images or []
+
+    def _aff(label, detail=None):
+        """The exact images whose per-image `issues` include `label`."""
+        out = [
+            {"value": im.get("url", ""), "detail": detail or label}
+            for im in imgs
+            if label in (im.get("issues") or [])
+        ]
+        return out[:50]
 
     if n["missing_alt"] > 0:
         issues.append({
@@ -475,6 +490,7 @@ def _build_issues(summary, check_sizes):
             "recommendation": "Add descriptive alt text to all images for accessibility and SEO.",
             "impact_score": 7,
             "effort": "Medium",
+            "affected": _aff("Missing alt text", "no alt attribute"),
         })
 
     if n["empty_alt"] > 0:
@@ -487,6 +503,7 @@ def _build_issues(summary, check_sizes):
             "recommendation": "Empty alt='' is correct for decorative images. Add a description only for images that convey meaning.",
             "impact_score": 2,
             "effort": "Low",
+            "affected": _aff("Empty alt text", 'alt=""'),
         })
 
     if n["generic_alt"] > 0:
@@ -497,6 +514,7 @@ def _build_issues(summary, check_sizes):
             "recommendation": "Replace generic alt text with descriptive, keyword-relevant descriptions.",
             "impact_score": 3,
             "effort": "Medium",
+            "affected": _aff("Generic alt text"),
         })
 
     if n["keyword_stuffed_alt"] > 0:
@@ -507,6 +525,7 @@ def _build_issues(summary, check_sizes):
             "recommendation": "Keep alt text concise and natural; avoid over-optimisation.",
             "impact_score": 5,
             "effort": "Low",
+            "affected": _aff("Keyword-stuffed alt text"),
         })
 
     if n["duplicate_alt"] > 0:
@@ -527,6 +546,7 @@ def _build_issues(summary, check_sizes):
             "recommendation": "Add loading='lazy' to below-the-fold images to improve page load speed.",
             "impact_score": 4,
             "effort": "Low",
+            "affected": _aff("Missing lazy loading"),
         })
 
     if n["no_dimensions"] > 0:
@@ -537,6 +557,7 @@ def _build_issues(summary, check_sizes):
             "recommendation": "Specify width and height attributes to prevent layout shifts (CLS).",
             "impact_score": 6,
             "effort": "Low",
+            "affected": _aff("Missing width/height dimensions"),
         })
 
     if n["non_webp_jpg_png"] > 0:
@@ -547,6 +568,7 @@ def _build_issues(summary, check_sizes):
             "recommendation": "Convert JPEG/PNG images to WebP or AVIF for better compression.",
             "impact_score": 4,
             "effort": "Medium",
+            "affected": _aff("Could be converted to WebP/AVIF"),
         })
 
     if n["bad_naming"] > 0:
@@ -557,6 +579,7 @@ def _build_issues(summary, check_sizes):
             "recommendation": "Use descriptive, hyphen-separated filenames instead of generic names like img001.jpg.",
             "impact_score": 3,
             "effort": "Medium",
+            "affected": _aff("Poor filename convention"),
         })
 
     if check_sizes and n.get("broken_images", 0) > 0:
@@ -567,6 +590,7 @@ def _build_issues(summary, check_sizes):
             "recommendation": "Fix or remove broken image references: check the URL is correct and the file still exists on the server.",
             "impact_score": 9,
             "effort": "Low",
+            "affected": _aff("Broken image (does not load)"),
         })
 
     if check_sizes and n["large_images"] > 0:
@@ -577,6 +601,7 @@ def _build_issues(summary, check_sizes):
             "recommendation": "Compress images or switch to WebP/AVIF to keep file sizes under 200KB.",
             "impact_score": 8,
             "effort": "Medium",
+            "affected": _aff("Large file size (> 200KB)"),
         })
 
     return issues
@@ -624,7 +649,7 @@ def analyze_images_advanced(soup, base_url="", check_sizes=False, max_size_check
         _populate_sizes(images, max_size_checks, base_url=base_url)
 
     summary = _compute_summary(images, check_sizes)
-    issues = _build_issues(summary, check_sizes)
+    issues = _build_issues(summary, check_sizes, images)
     format_opportunity = _format_opportunity(images)
 
     return {

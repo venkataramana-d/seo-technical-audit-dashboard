@@ -1,4 +1,4 @@
-"""Tests for modules/heading_auditor.py — in particular that heading
+"""Tests for modules/heading_auditor.py - in particular that heading
 extraction excludes nav/footer/aside content, so a "related posts" widget or
 site-wide nav after an article's real conclusion doesn't pollute the
 hierarchy tree with unrelated headings."""

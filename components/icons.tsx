@@ -1,5 +1,5 @@
 /**
- * Inline SVG icon set — Lucide-style (24x24 viewBox, currentColor stroke,
+ * Inline SVG icon set - Lucide-style (24x24 viewBox, currentColor stroke,
  * 1.75 stroke width, round caps/joins). Replaces the emoji the app used to use
  * as structural icons: emoji render differently per-OS, can't be themed, and
  * read as unprofessional in a data product (see the ui-ux-pro-max

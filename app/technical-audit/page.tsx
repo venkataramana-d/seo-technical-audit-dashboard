@@ -24,7 +24,7 @@ import { CheckSelector } from "@/components/CheckSelector";
 type InputMode = "single" | "sitemap" | "list" | "crawl";
 
 const DEFAULT_LIMIT = 50;
-// Matches the backend's bulk-audit cap (modules/_http.py::bulk_url_cap) —
+// Matches the backend's bulk-audit cap (modules/_http.py::bulk_url_cap) -
 // 5000 everywhere (production, preview, and local dev). Every bulk mode
 // (sitemap, crawl, CSV/paste) shares this same cap; a bare number input used
 // to be the only place this was surfaced, so a clear line above each URL
@@ -194,7 +194,7 @@ export default function TechnicalAuditPage() {
       addResult(result);
       router.push("/detail");
     } catch (err) {
-      // A user-initiated cancel surfaces as an AbortError — just return to idle
+      // A user-initiated cancel surfaces as an AbortError - just return to idle
       // without showing it as a failure.
       if (controller.signal.aborted) {
         setPhase("idle");

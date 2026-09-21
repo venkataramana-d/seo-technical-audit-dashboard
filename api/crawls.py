@@ -1,13 +1,13 @@
 """Frontend API for the crawler platform: start a crawl, watch it run, see
 its results, browse its pages/issues, compare it against a prior crawl, and
 schedule it to repeat. Same one-file/action-dispatch convention as
-api/audit-pipeline.py — POST {"action": ..., ...} rather than REST
+api/audit-pipeline.py - POST {"action": ..., ...} rather than REST
 verbs/path params.
 
 Deferred (not this file's job yet): the site-structure graph. An
 incremental addition to this same dispatch table, same as "links" was.
 
-Talks straight to worker/*.py — same DB file the worker process reads/
+Talks straight to worker/*.py - same DB file the worker process reads/
 writes (worker/db/session.py resolves an absolute path), no separate
 network layer, exactly like this repo's existing api/*.py already import
 modules/*.py directly.
@@ -31,7 +31,7 @@ from worker.access import crawl_for_org, resolve_org_id  # noqa: E402
 from worker.auth import AuthError  # noqa: E402
 from worker.queue import enqueue  # noqa: E402
 
-# Actions that operate on a specific crawl id — gated by per-org ownership.
+# Actions that operate on a specific crawl id - gated by per-org ownership.
 _CRAWL_SCOPED = {"status", "thematic", "trend", "compare", "setSchedule", "pages", "issues", "links", "ingest", "finalize"}
 # Actions that resolve an org (list/create derive scope from the session too).
 _ORG_SCOPED = {"list", "create"} | _CRAWL_SCOPED
@@ -242,7 +242,7 @@ def _handle_compare(handler, payload):
             previous = get_previous_completed_crawl(crawl_id)
             if previous is None:
                 # A project's first crawl (or one with no earlier completed
-                # run) has nothing to diff against — a normal state, not an
+                # run) has nothing to diff against - a normal state, not an
                 # error.
                 send_json(handler, 200, {"available": False})
                 return
@@ -250,7 +250,7 @@ def _handle_compare(handler, payload):
 
         # Ownership: the compare-against crawl is also client-supplied, so it
         # must belong to the same org (the auto-selected previous crawl already
-        # does — same project — but an explicit compareToId must be verified, or
+        # does - same project - but an explicit compareToId must be verified, or
         # a tenant could diff against any other org's crawl and read its data).
         org_id = getattr(handler, "_org_id", None)
         if org_id is not None:
@@ -274,7 +274,7 @@ def _handle_compare(handler, payload):
         })
     except ValueError as e:
         # compare_crawls() raises ValueError if either crawl_id doesn't exist
-        # (e.g. a stale compareToId from the client) — a 400, not a 500.
+        # (e.g. a stale compareToId from the client) - a 400, not a 500.
         send_json(handler, 400, {"error": str(e)})
     except Exception:  # noqa: BLE001
         logger.exception("crawls.py (compare) request failed")
@@ -286,7 +286,7 @@ def _handle_set_schedule(handler, payload):
         crawl_id = _parse_crawl_id(handler, payload)
         if crawl_id is None:
             return
-        # "" and null both mean "turn the schedule off" — the client sends
+        # "" and null both mean "turn the schedule off" - the client sends
         # either depending on how the picker's empty state is represented.
         schedule_cron = (payload.get("scheduleCron") or "").strip() or None
 
@@ -393,7 +393,7 @@ def _handle_issues(handler, payload):
             if page_id is not None:
                 filters.append(Issue.page_id == int(page_id))
 
-            # category lives inside explanation_json, not a column — SQL-level
+            # category lives inside explanation_json, not a column - SQL-level
             # JSON-path filtering would be fragile/dialect-specific at this
             # scale, so severity/search are filtered in SQL and category is
             # filtered in Python below (matches worker/site_audit.py's own
@@ -456,7 +456,7 @@ def _handle_links(handler, payload):
                 filters.append(Link.link_type == link_type)
             if broken_only:
                 # Only internal links are ever checked for brokenness (see
-                # site_audit.py::_detect_broken_internal_links) — external/
+                # site_audit.py::_detect_broken_internal_links) - external/
                 # special links leave is_broken NULL, so this filter never
                 # needs an explicit link_type == "internal" alongside it.
                 filters.append(Link.is_broken.is_(True))
@@ -546,7 +546,7 @@ class handler(BaseHTTPRequestHandler):
 
         # Per-org isolation (05 §4): derive the org from the session and verify
         # crawl ownership before the handler runs. `resolve_org_id` returns None
-        # in dev/test (no session, no VERCEL) — no scoping, preserving the
+        # in dev/test (no session, no VERCEL) - no scoping, preserving the
         # single-tenant behavior; in production an unauthenticated org-scoped
         # request is rejected with 401.
         self._org_id = None

@@ -1,11 +1,11 @@
-"""Content AI Agent — 09-AI-AGENT-SUBSYSTEMS.md §1.
+"""Content AI Agent - 09-AI-AGENT-SUBSYSTEMS.md §1.
 
 Turns rule-based findings into specific, page-aware DRAFT fix content: rewritten
 title / meta description (respecting the 60 / 155 char bounds), alt text, etc.
-Everything is a draft — never written to pages; the user must explicitly accept.
+Everything is a draft - never written to pages; the user must explicitly accept.
 
 Guardrail: the system prompt is scoped strictly to on-page SEO mechanics
-(length, keyword placement, structure) — it must NOT invent business facts
+(length, keyword placement, structure) - it must NOT invent business facts
 (pricing, claims, credentials).
 
 Pure module (LLM injected). `content_runner.py` does the DB I/O.
@@ -18,8 +18,8 @@ TITLE_MIN, TITLE_MAX = 30, 60
 META_MIN, META_MAX = 70, 155
 
 _SYSTEM = (
-    "You are an SEO copy assistant. You rewrite on-page SEO elements — title tags, meta "
-    "descriptions, image alt text — for length, clarity, and keyword placement only. You must "
+    "You are an SEO copy assistant. You rewrite on-page SEO elements - title tags, meta "
+    "descriptions, image alt text - for length, clarity, and keyword placement only. You must "
     "NOT invent facts about the business (pricing, claims, awards, credentials); work only from "
     "the page content you are given. Every output is a draft a human will review before it goes "
     "live. Respond with ONLY a JSON object, no prose."

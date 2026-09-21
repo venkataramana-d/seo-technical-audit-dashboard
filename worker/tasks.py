@@ -1,4 +1,4 @@
-"""Job handler registry — the "packaging, not rewriting" proof point.
+"""Job handler registry - the "packaging, not rewriting" proof point.
 
 Each handler is a thin wrapper: it unpacks a job payload and calls existing
 `modules/*.py` functions completely unchanged, then hands the result back to
@@ -33,7 +33,7 @@ def handle_crawl_start(payload: dict) -> dict:
     progresses via `persist_result`, and finalizing the summary scores on
     completion. Marks the Crawl row failed (and re-raises, so `queue.py`'s
     existing handling also marks the Job failed) if the crawl loop itself
-    errors — a per-page failure inside `crawl_site` is already captured as an
+    errors - a per-page failure inside `crawl_site` is already captured as an
     "error" outcome, not an exception here."""
     crawl_id = payload["crawl_id"]
 

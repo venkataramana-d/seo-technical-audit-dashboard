@@ -1,4 +1,4 @@
-"""Tests for worker/crawl_diff.py — comparing two crawls of the same
+"""Tests for worker/crawl_diff.py - comparing two crawls of the same
 project. Seeds two crawls with hand-crafted Page/Issue rows designed to
 exercise new/fixed issues, regressed/improved pages, and score deltas."""
 

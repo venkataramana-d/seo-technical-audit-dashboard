@@ -1,6 +1,6 @@
 """Engine/session factory. Reads DATABASE_URL; defaults to a local SQLite
 file for dev so no external DB install is required. Swapping to Postgres in
-production is `DATABASE_URL=postgresql://...` — no code change.
+production is `DATABASE_URL=postgresql://...` - no code change.
 """
 
 from __future__ import annotations

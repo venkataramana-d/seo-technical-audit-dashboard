@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import Link from "next/link";
 import { useAudit } from "@/lib/state/AuditContext";
-import { Card, DifficultyBadge, EmptyState, HelpSection, IssueRow, PageHeader, ScoreBadge, StatusPill, TabBar } from "@/components/ui";
+import { Card, DifficultyBadge, EmptyState, HelpSection, IssueRow, looksLikeImage, looksLikeUrl, PageHeader, ScoreBadge, StatusPill, TabBar } from "@/components/ui";
 import { GlobeIcon } from "@/components/icons";
 import { difficultyBreakdown } from "@/lib/difficulty";
 import { getThematicIssues, getTopIssuesByImpact } from "@/lib/aggregate";
@@ -19,7 +19,7 @@ import { PerformanceView } from "@/components/detail/PerformanceView";
 import { AiSummaryCard } from "@/components/AiSummaryCard";
 
 // "Recommendations" used to be its own 8th tab, but it just re-rendered the
-// top-10 issues through the same IssueRow the Issues tab already uses —
+// top-10 issues through the same IssueRow the Issues tab already uses -
 // folded into a card at the top of Issues instead of a separate tab a user
 // had to click through 7 others to reach.
 const TABS = [
@@ -149,6 +149,28 @@ export default function DetailPage() {
   const [urlCopied, setUrlCopied] = useState(false);
   const { selected: selectedChecks } = useSelectedChecks();
 
+  // Jump-to-element: clicking an affected element (in an IssueRow's AffectedList)
+  // switches to the tab whose detail table shows that element, and hands the
+  // value down so that view can scroll to + highlight the matching row. `seq`
+  // re-triggers the jump even when the same value is clicked twice. This is an
+  // event handler (not a useEffect body), so setState here is safe under the
+  // repo's react-hooks/set-state-in-effect rule.
+  const focusSeqRef = useRef(0);
+  const [focus, setFocus] = useState<{ value: string; seq: number } | null>(null);
+
+  function locateElement(value: string) {
+    // Image srcs live in Performance → Image SEO; link targets in Links → Links.
+    // Anything else (title/H1 text, robots directive, etc.) has no row-level
+    // table, so we leave the tab as-is and just flag the value.
+    if (looksLikeImage(value)) {
+      setTab("Performance");
+    } else if (looksLikeUrl(value)) {
+      setTab("Links");
+    }
+    focusSeqRef.current += 1;
+    setFocus({ value, seq: focusSeqRef.current });
+  }
+
   if (results.length === 0) {
     return (
       <div>
@@ -258,7 +280,7 @@ export default function DetailPage() {
                 </button>
               </div>
               {topIssues.slice(0, 3).map((issue, i) => (
-                <IssueRow key={i} issue={issue} pageContext={fixPageContext} groqApiKey={groqApiKey} />
+                <IssueRow key={i} issue={issue} pageContext={fixPageContext} groqApiKey={groqApiKey} onLocate={locateElement} />
               ))}
             </Card>
           ) : null}
@@ -639,7 +661,7 @@ export default function DetailPage() {
                 Top Issues by Impact
               </h3>
               {topIssues.slice(0, 5).map((issue, i) => (
-                <IssueRow key={i} issue={issue} pageContext={fixPageContext} groqApiKey={groqApiKey} />
+                <IssueRow key={i} issue={issue} pageContext={fixPageContext} groqApiKey={groqApiKey} onLocate={locateElement} />
               ))}
             </Card>
           ) : null}
@@ -649,7 +671,7 @@ export default function DetailPage() {
                 {theme} ({themeIssues.length})
               </h3>
               {themeIssues.map((issue, i) => (
-                <IssueRow key={i} issue={issue} pageContext={fixPageContext} groqApiKey={groqApiKey} />
+                <IssueRow key={i} issue={issue} pageContext={fixPageContext} groqApiKey={groqApiKey} onLocate={locateElement} />
               ))}
             </Card>
           ))}
@@ -657,7 +679,7 @@ export default function DetailPage() {
         </div>
       ) : null}
 
-      {tab === "Links" ? <LinksView result={r} /> : null}
+      {tab === "Links" ? <LinksView result={r} focusValue={focus?.value} focusSeq={focus?.seq} /> : null}
 
       {tab === "Headings" ? <HeadingsView result={r} /> : null}
 
@@ -707,7 +729,7 @@ export default function DetailPage() {
         </div>
       ) : null}
 
-      {tab === "Performance" ? <PerformanceView result={r} /> : null}
+      {tab === "Performance" ? <PerformanceView result={r} focusValue={focus?.value} focusSeq={focus?.seq} /> : null}
     </div>
   );
 }

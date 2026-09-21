@@ -1,4 +1,4 @@
-"""Tests for worker/queue.py — the DB-backed queue standing in for
+"""Tests for worker/queue.py - the DB-backed queue standing in for
 Redis+Celery/arq locally. Verifies the enqueue -> claim -> process ->
 complete/fail cycle in isolation, against an in-memory SQLite DB (not the
 dev.db file used by the actual worker process)."""

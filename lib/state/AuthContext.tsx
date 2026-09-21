@@ -1,7 +1,7 @@
 "use client";
 
 // Client-side auth state for the app. Talks to the Python api/auth.py handler
-// (signup/login/logout/me), which sets an HttpOnly `sa_session` cookie — so the
+// (signup/login/logout/me), which sets an HttpOnly `sa_session` cookie - so the
 // browser never sees the token; we only ever learn "who am I" from GET /api/auth.
 //
 // Note on local `next dev`: the Python api/*.py functions only run under Vercel's
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch("/api/auth", { credentials: "include" });
       if (res.status === 404) {
         // Auth backend isn't deployed (e.g. local `next dev`, where the Python
-        // api/*.py don't run) — keep the app open for frontend-only work.
+        // api/*.py don't run) - keep the app open for frontend-only work.
         setStatus("unavailable");
         setUser(null);
         return;
