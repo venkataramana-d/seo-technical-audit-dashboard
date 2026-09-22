@@ -108,6 +108,11 @@ first).
   exact element, with a full explanation and an export of all instances.
 
 ### 🟡 M2 - Scale foundation: server-side crawl + fast UI
+> **Status:** T2.2 DONE (results paginated 50/page + crawl-result FK indexes,
+> migration `c4d5e6f7a8b9`). T2.1 code-ready: worker Dockerfile + `railway.toml`
+> + gated frontend flag `NEXT_PUBLIC_SERVER_CRAWL` shipped; user provisions the
+> Railway service per [DEPLOY-WORKER.md](DEPLOY-WORKER.md) (the engine/queue/
+> scheduler already existed). T2.3 resume/checkpoint still pending.
 - **T2.1** Run `worker/` crawls **server-side** on an always-on host (Railway
   rec.) → persist pages/links/findings to Neon; **live progress** (poll→SSE).
 - **T2.2** **Paginate/virtualize** the Results + report tables (fixes the

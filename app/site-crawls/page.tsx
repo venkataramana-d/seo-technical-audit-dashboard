@@ -8,6 +8,13 @@ import { formatDate } from "@/lib/format";
 import { SCHEDULE_PRESETS } from "@/lib/schedulePresets";
 import { runPersistedCrawl } from "@/lib/crawl/persistedCrawl";
 
+// When a persistent worker is running (e.g. `python -m worker` on Railway), set
+// NEXT_PUBLIC_SERVER_CRAWL=1 so the crawl runs server-side (the create action
+// already enqueues the job) and the tab is free to close. Default (unset) keeps
+// the browser-orchestrated path, which is correct on a Vercel-only deploy where
+// no worker exists. See DEPLOY-WORKER.md.
+const SERVER_CRAWL = process.env.NEXT_PUBLIC_SERVER_CRAWL === "1";
+
 interface CrawlSummary {
   id: number;
   rootUrl: string | null;
@@ -98,6 +105,13 @@ export default function SiteCrawlsPage() {
         renderJs,
         scheduleCron,
       });
+      if (SERVER_CRAWL) {
+        // A persistent worker picks up the enqueued crawl.start job and runs the
+        // crawl server-side; the detail page polls status. The tab can close.
+        setProgress("Queued - running on the server…");
+        router.push(`/site-crawls/${data.crawlId}`);
+        return;
+      }
       // Browser drives the crawl and streams each audited page into the DB
       // (Vercel-only - no worker). Progress shows here until it finalizes.
       setProgress("Discovering pages…");

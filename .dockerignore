@@ -1,0 +1,17 @@
+# Keep the worker image lean — exclude the Next.js frontend build artifacts and
+# anything the Python worker doesn't need.
+node_modules
+.next
+.git
+.vercel
+*.log
+.env*
+worker/dev.db
+**/__pycache__
+*.pyc
+.venv
+venv
+.pytest_cache
+coverage
+playwright-report
+test-results
