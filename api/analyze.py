@@ -29,6 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules._http import read_json_body, send_json  # noqa: E402
 from modules.crawl_graph import build_depth_report, excessive_depth_issues  # noqa: E402
+from modules.link_score import build_link_score_report  # noqa: E402
 from modules.sitewide import SiteLink, SitePage, run_sitewide_audit  # noqa: E402
 from worker.db.models import Crawl, Link, Page, Project  # noqa: E402
 from worker.db.session import SessionLocal  # noqa: E402
@@ -201,6 +202,41 @@ def _handle_crawl_graph(handler, payload):
         send_json(handler, 500, {"error": "Internal error while building the crawl graph."})
 
 
+def _handle_link_score(handler, payload):
+    """Internal PageRank / Link Score (M3 T3.1) over the crawl's internal link
+    graph: which pages the site's own linking promotes, plus inlink/outlink
+    counts. Highest-scoring page is normalized to 100."""
+    crawl_id = _parse_crawl_id(handler, payload)
+    if crawl_id is None:
+        return
+    try:
+        with SessionLocal() as db:
+            data = _load_crawl_data(db, crawl_id)
+            if data is None:
+                send_json(handler, 404, {"error": "Crawl not found."})
+                return
+            _, root_url, _, site_links, page_urls = data
+            report = build_link_score_report(page_urls, site_links, root=root_url)
+            send_json(handler, 200, {
+                "crawlId": crawl_id,
+                "rootUrl": root_url,
+                "pageCount": len(page_urls),
+                "topPages": [
+                    {"url": u, "score": s, "inlinks": report.inlinks.get(u, 0),
+                     "outlinks": report.outlinks.get(u, 0)}
+                    for (u, s) in report.top_pages
+                ],
+                "lowestPages": [
+                    {"url": u, "score": s, "inlinks": report.inlinks.get(u, 0),
+                     "outlinks": report.outlinks.get(u, 0)}
+                    for (u, s) in report.lowest_pages
+                ],
+            })
+    except Exception:  # noqa: BLE001
+        logger.exception("analyze.py link-score failed for crawl %s", crawl_id)
+        send_json(handler, 500, {"error": "Internal error while computing link scores."})
+
+
 def _handle_near_duplicates(handler, payload):
     crawl_id = _parse_crawl_id(handler, payload)
     if crawl_id is None:
@@ -237,6 +273,7 @@ def _handle_near_duplicates(handler, payload):
 _ACTIONS = {
     "sitewide": _handle_sitewide,
     "crawl-graph": _handle_crawl_graph,
+    "link-score": _handle_link_score,
     "near-duplicates": _handle_near_duplicates,
 }
 

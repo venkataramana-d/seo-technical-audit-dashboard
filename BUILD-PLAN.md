@@ -126,6 +126,14 @@ first).
   Results page stays fast.
 
 ### 🟡 M3 - Advanced analysis + deeper checks
+> **Status:** research done ([M3-PLAN.md](M3-PLAN.md)) - most primitives already
+> existed (depth, orphans/unreachable, exact-dup, redirect, hreflang, trend,
+> compare). Shipped Tier A #1+#2: **Link Score / internal PageRank**
+> (`modules/link_score.py` + `api/analyze.py` `link-score` action + Site-wide UI
+> card) and wired the orphaned **directives.py** for granular robots-directive
+> validation. Runs at finalize/analyze on the free browser crawls (no paid infra).
+> Remaining: persist Link Score/thematic scores + near-dup-at-scale (need
+> migrations), per-page crawl-depth capture, accessibility engine.
 - **T3.1** **Crawl Analysis pass**: **Link Score** (internal PageRank over the
   link graph), **orphan pages**, **near-duplicate clusters**, redirect map.
 - **T3.2** New checks toward SF depth: **pagination (rel next/prev), AMP,

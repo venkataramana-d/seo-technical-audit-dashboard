@@ -418,6 +418,19 @@ def analyze_indexability(soup, http_headers=None):
                 "Review whether nofollow on meta robots is intentional: it prevents link equity flow.",
                 impact_score=5, effort="Low",
                 affected=[{"value": robots_content, "detail": "meta robots"}]))
+        # Granular directive validation (M3 T3.2): flag tokens that aren't valid
+        # robots directives (usually typos like "no-index"/"noflow"), which search
+        # engines silently ignore - so the intended directive never takes effect.
+        from modules.directives import parse_directive_string, unrecognized_directives
+        unknown = unrecognized_directives(parse_directive_string(robots_content))
+        if unknown:
+            issues.append(_issue(
+                f"Unrecognized meta robots directive(s): {', '.join(unknown)}",
+                "Indexability", "Notice",
+                "These tokens aren't valid robots directives, so search engines ignore them - "
+                "check for typos (e.g. 'no-index' should be 'noindex').",
+                impact_score=2, effort="Low",
+                affected=[{"value": t, "detail": "not a known robots directive"} for t in unknown]))
 
     # X-Robots-Tag response header: noindex is already flagged by
     # modules/advanced_checks.py::analyze_http_headers; only add the

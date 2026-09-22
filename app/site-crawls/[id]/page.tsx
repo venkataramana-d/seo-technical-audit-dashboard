@@ -198,6 +198,18 @@ interface CrawlGraphResponse {
   issues: SiteIssue[];
 }
 
+interface LinkScoreRow {
+  url: string;
+  score: number;
+  inlinks: number;
+  outlinks: number;
+}
+interface LinkScoreResponse {
+  pageCount: number;
+  topPages: LinkScoreRow[];
+  lowestPages: LinkScoreRow[];
+}
+
 const SEVERITY_STYLE: Record<string, { color: string; bg: string }> = {
   error: { color: "var(--seo-error)", bg: "var(--seo-error-bg)" },
   warning: { color: "var(--seo-warning)", bg: "var(--seo-warning-bg)" },
@@ -1437,6 +1449,7 @@ function SiteIssueCard({ issue }: { issue: SiteIssue }) {
 function SitewideTab({ crawlId }: { crawlId: number }) {
   const [sitewide, setSitewide] = useState<SitewideResponse | null>(null);
   const [graph, setGraph] = useState<CrawlGraphResponse | null>(null);
+  const [linkScore, setLinkScore] = useState<LinkScoreResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -1447,9 +1460,10 @@ function SitewideTab({ crawlId }: { crawlId: number }) {
     Promise.all([
       postAnalyzeAction<SitewideResponse>("sitewide", crawlId),
       postAnalyzeAction<CrawlGraphResponse>("crawl-graph", crawlId),
+      postAnalyzeAction<LinkScoreResponse>("link-score", crawlId),
     ])
-      .then(([sw, g]) => {
-        if (!cancelled) { setSitewide(sw); setGraph(g); }
+      .then(([sw, g, ls]) => {
+        if (!cancelled) { setSitewide(sw); setGraph(g); setLinkScore(ls); }
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to run analysis.");
@@ -1542,6 +1556,61 @@ function SitewideTab({ crawlId }: { crawlId: number }) {
           </>
         ) : null}
       </Card>
+
+      {linkScore && linkScore.topPages.length > 0 ? (
+        <Card>
+          <h3 className="mb-1 text-sm font-semibold text-[var(--seo-heading)]">
+            Link Score (internal PageRank)
+          </h3>
+          <p className="mb-3 text-xs text-[var(--seo-muted)]">
+            Which pages your internal linking actually promotes - a 0-100 relative score
+            (top page = 100) from an internal-PageRank over the crawl&apos;s link graph. Low-score
+            pages with few inlinks are under-linked; add internal links to lift the ones that matter.
+          </p>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <LinkScoreTable title="Highest internal authority" rows={linkScore.topPages} />
+            <LinkScoreTable title="Lowest (under-linked) pages" rows={linkScore.lowestPages} />
+          </div>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function LinkScoreTable({ title, rows }: { title: string; rows: LinkScoreRow[] }) {
+  return (
+    <div>
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--seo-muted)]">{title}</h4>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-[var(--seo-border)] text-left text-[var(--seo-muted)]">
+            <th className="py-1.5 pr-2">Page</th>
+            <th className="py-1.5 pr-2 text-right">Score</th>
+            <th className="py-1.5 pr-2 text-right">In</th>
+            <th className="py-1.5 text-right">Out</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.url} data-locate-value={r.url} className="border-b border-[var(--table-row-border)]">
+              <td className="max-w-[16rem] truncate py-1.5 pr-2 font-mono text-[var(--seo-text-light)]" title={r.url}>{r.url}</td>
+              <td className="py-1.5 pr-2 text-right">
+                <span
+                  className="inline-block rounded px-1.5 py-0.5 font-semibold tabular-nums"
+                  style={{
+                    color: r.score >= 60 ? "var(--seo-success)" : r.score >= 25 ? "var(--seo-warning)" : "var(--seo-error)",
+                    backgroundColor: r.score >= 60 ? "var(--seo-success-bg)" : r.score >= 25 ? "var(--seo-warning-bg)" : "var(--seo-error-bg)",
+                  }}
+                >
+                  {r.score}
+                </span>
+              </td>
+              <td className="py-1.5 pr-2 text-right tabular-nums text-[var(--seo-text-light)]">{r.inlinks}</td>
+              <td className="py-1.5 text-right tabular-nums text-[var(--seo-text-light)]">{r.outlinks}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
