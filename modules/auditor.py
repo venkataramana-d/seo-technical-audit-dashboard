@@ -251,13 +251,13 @@ def analyze_metadata(soup, url):
             "Add a unique, descriptive meta title (30–60 chars) containing your primary keyword.",
             impact_score=10, effort="Low"))
     elif title_len < MIN_TITLE_LEN:
-        issues.append(_issue(f"Meta Title Too Short ({title_len} chars)", "Metadata", "Warning",
+        issues.append(_issue(f"Meta Title Too Short ({title_len} chars)", "Metadata", "Notice",
             f"Expand the meta title to at least {MIN_TITLE_LEN} characters for better SERP visibility.",
             impact_score=6, effort="Low",
             affected=[{"value": title, "detail": f"{title_len} chars"}]))
     elif title_len > MAX_TITLE_LEN:
-        issues.append(_issue(f"Meta Title Too Long ({title_len} chars)", "Metadata", "Warning",
-            f"Shorten meta title to under {MAX_TITLE_LEN} characters to avoid SERP truncation.",
+        issues.append(_issue(f"Meta Title Too Long ({title_len} chars)", "Metadata", "Notice",
+            f"Shorten meta title to under {MAX_TITLE_LEN} characters to avoid SERP truncation (pixel-width proxy).",
             impact_score=6, effort="Low",
             affected=[{"value": title, "detail": f"{title_len} chars"}]))
 
@@ -267,14 +267,9 @@ def analyze_metadata(soup, url):
     desc_len = len(description)
 
     if not description:
-        issues.append(_issue("Missing Meta Description", "Metadata", "Critical",
+        issues.append(_issue("Missing Meta Description", "Metadata", "Warning",
             "Add a compelling meta description (150–160 chars) with a clear call to action.",
             impact_score=9, effort="Low"))
-    elif desc_len < MIN_DESC_LEN:
-        issues.append(_issue(f"Meta Description Too Short ({desc_len} chars)", "Metadata", "Warning",
-            f"Expand description to at least {MIN_DESC_LEN} characters.",
-            impact_score=5, effort="Low",
-            affected=[{"value": description, "detail": f"{desc_len} chars"}]))
     elif desc_len > MAX_DESC_LEN:
         issues.append(_issue(f"Meta Description Too Long ({desc_len} chars)", "Metadata", "Warning",
             f"Shorten description to under {MAX_DESC_LEN} characters.",
@@ -291,7 +286,7 @@ def analyze_metadata(soup, url):
     if not og_desc:   missing_og.append("og:description")
     if not og_image:  missing_og.append("og:image")
     if missing_og:
-        issues.append(_issue(f"Missing Open Graph Tags: {', '.join(missing_og)}", "Metadata", "Medium",
+        issues.append(_issue(f"Missing Open Graph Tags: {', '.join(missing_og)}", "Metadata", "Notice",
             "Add all og: meta tags to control how this page appears when shared on social media.",
             impact_score=4, effort="Low",
             affected=[{"value": tag, "detail": "missing"} for tag in missing_og[:50]]))
@@ -363,7 +358,7 @@ def analyze_canonical(soup, url):
     is_self_ref    = False
 
     if len(canonical_tags) == 0:
-        issues.append(_issue("Missing Canonical Tag", "Canonical", "Warning",
+        issues.append(_issue("Missing Canonical Tag", "Canonical", "Notice",
             "Add a canonical tag to prevent duplicate content issues.",
             impact_score=5, effort="Low"))
     elif len(canonical_tags) > 1:
@@ -387,8 +382,10 @@ def analyze_canonical(soup, url):
             is_self_ref = url_norm == can_norm
 
             if not is_self_ref:
-                issues.append(_issue("Canonical Points to Different URL", "Canonical", "Warning",
-                    f"Verify this is intentional. Points to: {canonical_url[:80]}",
+                issues.append(_issue("Canonical Points to Different URL", "Canonical", "Notice",
+                    f"Verify this is intentional (cross-URL canonicals are often correct, e.g. ?page=2 → base); "
+                    f"only a problem if the canonical target is a redirect, 4xx/5xx, or noindex page. "
+                    f"Points to: {canonical_url[:80]}",
                     impact_score=6, effort="Low",
                     affected=[{"value": canonical_url, "detail": f"expected self-reference: {url}"}]))
 
@@ -412,6 +409,7 @@ def analyze_indexability(soup, http_headers=None):
         if "noindex" in tokens:
             is_indexable = False
             issues.append(_issue("Page Set to Noindex", "Indexability", "Critical",
+                "Verify this is intentional — noindex is correct for thank-you/cart/search/filter pages. "
                 "Remove 'noindex' from meta robots if this page should appear in search results.",
                 impact_score=10, effort="Low",
                 affected=[{"value": robots_content, "detail": "meta robots"}]))
@@ -456,22 +454,16 @@ def analyze_url_structure(url, response_time=0.0, final_url=None):
     url_len = len(url)
 
     if url_len > 115:
-        issues.append(_issue(f"URL Too Long ({url_len} chars)", "URL Structure", "Warning",
+        issues.append(_issue(f"URL Too Long ({url_len} chars)", "URL Structure", "Notice",
             "Keep URLs under 115 characters for better crawlability and usability.",
             impact_score=4, effort="Medium",
             affected=[{"value": url, "detail": f"{url_len} chars"}]))
 
     if re.search(r"[A-Z]", path):
-        issues.append(_issue("URL Contains Uppercase Letters", "URL Structure", "Low",
+        issues.append(_issue("URL Contains Uppercase Letters", "URL Structure", "Notice",
             "Use lowercase-only URLs to avoid duplicate content issues.",
             impact_score=3, effort="Low",
             affected=[{"value": url, "detail": "uppercase in path"}]))
-
-    if parsed.query:
-        issues.append(_issue("URL Contains Query Parameters", "URL Structure", "Warning",
-            "Use clean, parameter-free URLs where possible. Query strings can cause duplicate content and are harder to remember/share.",
-            impact_score=4, effort="Medium",
-            affected=[{"value": parsed.query, "detail": "query string"}]))
 
     if urlparse(final_url or url).scheme != "https":
         issues.append(_issue("Not Using HTTPS", "URL Structure", "Critical",
@@ -504,21 +496,15 @@ def analyze_content(soup, html: str = "", base_url: str = ""):
     content_ratio = round((text_len / html_len * 100) if html_len > 0 else 0, 1)
 
     if word_count < THIN_THRESHOLD:
-        issues.append(_issue(f"Thin Content ({word_count} words)", "Content", "High",
+        issues.append(_issue(f"Thin Content ({word_count} words)", "Content", "Warning",
             f"Expand content to at least {THIN_THRESHOLD} words. Thin content rarely ranks well.",
             impact_score=8, effort="High",
             affected=[{"value": f"{word_count} words", "detail": f"below {THIN_THRESHOLD}"}]))
     elif word_count < 600:
-        issues.append(_issue(f"Below Recommended Word Count ({word_count} words)", "Content", "Warning",
+        issues.append(_issue(f"Below Recommended Word Count ({word_count} words)", "Content", "Notice",
             "Aim for 600+ words to cover the topic comprehensively and outrank competitors.",
             impact_score=5, effort="High",
             affected=[{"value": f"{word_count} words", "detail": "below 600"}]))
-
-    if content_ratio < 10:
-        issues.append(_issue(f"Low Content-to-HTML Ratio ({content_ratio}%)", "Content", "Warning",
-            "Reduce bloated HTML markup and increase meaningful text content.",
-            impact_score=3, effort="Medium",
-            affected=[{"value": f"{content_ratio}%", "detail": "below 10%"}]))
 
     # Extract beginning and ending paragraphs for content preview
     para_tags = [

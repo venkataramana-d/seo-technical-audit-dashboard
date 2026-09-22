@@ -41,8 +41,8 @@ def analyze_http_headers(http_headers: dict, url: str) -> dict:
         issues.append({
             "issue": "Missing Cache-Control Header",
             "category": "Performance",
-            "severity": "Warning",
-            "recommendation": "Add a Cache-Control header (e.g. 'public, max-age=31536000') to improve repeat-visit performance and reduce server load.",
+            "severity": "Notice",
+            "recommendation": "Advisory: add a Cache-Control header (e.g. 'public, max-age=31536000') to improve repeat-visit performance and reduce server load. Not an SEO ranking factor.",
             "impact_score": 5,
             "effort": "Medium",
             "affected": [{"value": "Cache-Control", "detail": "not present"}],
@@ -78,8 +78,8 @@ def analyze_http_headers(http_headers: dict, url: str) -> dict:
         issues.append({
             "issue": "Missing HSTS Header (Strict-Transport-Security)",
             "category": "Security",
-            "severity": "Medium",
-            "recommendation": "Add 'Strict-Transport-Security: max-age=31536000; includeSubDomains' to enforce HTTPS connections. This is a security best practice and minor trust signal, not a direct Google ranking factor.",
+            "severity": "Notice",
+            "recommendation": "Advisory: add 'Strict-Transport-Security: max-age=31536000; includeSubDomains' to enforce HTTPS connections. This is a security best practice and minor trust signal, not a Google ranking factor.",
             "impact_score": 4,
             "effort": "Low",
             "affected": [{"value": "Strict-Transport-Security", "detail": "not present"}],
@@ -96,8 +96,8 @@ def analyze_http_headers(http_headers: dict, url: str) -> dict:
         issues.append({
             "issue": "Missing X-Frame-Options Header",
             "category": "Security",
-            "severity": "Medium",
-            "recommendation": "Add 'X-Frame-Options: SAMEORIGIN' to prevent clickjacking attacks and protect user trust.",
+            "severity": "Notice",
+            "recommendation": "Advisory: add 'X-Frame-Options: SAMEORIGIN' to prevent clickjacking. This header is partly superseded by the CSP 'frame-ancestors' directive. Security hygiene, not an SEO ranking factor.",
             "impact_score": 4,
             "effort": "Low",
             "affected": [{"value": "X-Frame-Options", "detail": "not present"}],
@@ -236,20 +236,9 @@ def analyze_technical_seo(soup, url: str, page_size_bytes: int, response_time: f
     iframes = soup.find_all("iframe") if soup else []
     iframe_count = len(iframes)
     has_iframes = iframe_count > 0
-
-    if has_iframes:
-        issues.append({
-            "issue": f"Page Contains {iframe_count} iframe(s)",
-            "category": "Technical",
-            "severity": "Low",
-            "recommendation": "Avoid iframes where possible: they can slow page load, cause CLS, and may not be crawled by search engines.",
-            "impact_score": 3,
-            "effort": "Medium",
-            "affected": [
-                {"value": (f.get("src") or "(no src)"), "detail": "iframe on page"}
-                for f in iframes
-            ][:50],
-        })
+    # NOTE: We intentionally do NOT flag pages that contain iframes. Embeds such
+    # as YouTube videos, Google Maps, and third-party widgets are normal and not
+    # an SEO defect, so no issue is emitted here.
 
     # ── DOM size ─────────────────────────────────────────────────────────
     dom_elements = len(soup.find_all()) if soup else 0
@@ -599,8 +588,8 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
         issues.append({
             "issue": f"Missing Twitter Card Tags ({len(missing_twitter)} missing)",
             "category": "Social SEO",
-            "severity": "Medium",
-            "recommendation": f"Add missing tags: {', '.join(missing_twitter)}. Twitter card tags control appearance when shared on X/Twitter.",
+            "severity": "Notice",
+            "recommendation": f"Advisory: add missing tags: {', '.join(missing_twitter)}. Twitter card tags refine appearance when shared on X/Twitter, but X/Twitter falls back to your Open Graph tags when they are absent. Not an SEO ranking factor.",
             "impact_score": 4,
             "effort": "Low",
             "affected": [{"value": t, "detail": "not present"} for t in missing_twitter][:50],
@@ -666,8 +655,8 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
             issues.append({
                 "issue": "Missing BreadcrumbList Schema",
                 "category": "Structured Data",
-                "severity": "Low",
-                "recommendation": "Add BreadcrumbList schema to display breadcrumb rich results in Google.",
+                "severity": "Notice",
+                "recommendation": "Advisory: add BreadcrumbList schema to display breadcrumb rich results in Google. Not every page has a breadcrumb trail, so this is optional and page-dependent.",
                 "impact_score": 3,
                 "effort": "Medium",
                 "affected": [{

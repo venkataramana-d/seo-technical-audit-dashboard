@@ -184,7 +184,10 @@ export function linkHealthCounts(links: LinkEntry[]) {
 }
 
 export function securityGaps(links: LinkEntry[]): LinkEntry[] {
-  return links.filter((l) => l.opens_new_tab && (!l.has_noopener || !l.has_noreferrer));
+  // Only a missing noopener is an actual security concern (reverse tabnabbing).
+  // noreferrer is a privacy/analytics choice (it strips the Referer header), not a
+  // security gap, so a link with rel="noopener" only must NOT be flagged.
+  return links.filter((l) => l.opens_new_tab && !l.has_noopener);
 }
 
 // Was this specific link actually HTTP-checked (validateLinks was on), or is its
@@ -236,7 +239,7 @@ export function buildExecutiveSummary(
 
   const quickWins: string[] = [];
   if (weak.length > 0) quickWins.push(`Rewrite ${weak.length} weak anchor text link(s) (e.g. "click here") with descriptive text.`);
-  if (gaps.length > 0) quickWins.push(`Add rel="noopener noreferrer" to ${gaps.length} link(s) opening in a new tab.`);
+  if (gaps.length > 0) quickWins.push(`(advisory) Add rel="noopener" to ${gaps.length} new-tab link(s) — modern browsers already imply this.`);
   if (orphanCount > 0) quickWins.push(`Add internal links to ${orphanCount} orphan page(s) with zero inbound links.`);
 
   const topPriorityFixes: string[] = [];
@@ -344,19 +347,19 @@ export function explainLink(link: LinkEntry, kind: "internal" | "external"): Lin
         : undefined,
     };
   }
-  if (link.opens_new_tab && (!link.has_noopener || !link.has_noreferrer)) {
+  if (link.opens_new_tab && !link.has_noopener) {
     return {
-      issueName: "Missing rel=\"noopener noreferrer\"",
-      status: "warning",
-      severity: "Medium",
-      whatIsIt: 'This link opens in a new tab (target="_blank") without rel="noopener noreferrer".',
+      issueName: "Advisory: rel=\"noopener\" not set",
+      status: "info",
+      severity: "Low",
+      whatIsIt: 'This link opens in a new tab (target="_blank") without an explicit rel="noopener".',
       whyImportant:
-        "Without noopener, the new tab keeps a JavaScript reference (window.opener) back to your page: a known security risk (reverse tabnabbing) and a minor performance cost.",
-      rootCause: "The target=\"_blank\" attribute was added without the accompanying rel attributes.",
-      seoImpact: "No direct ranking impact, but security best-practice audits (including some SEO tools) flag it.",
-      userImpact: "Invisible to most users, but exposes them to a low-probability phishing/tabnabbing vector on untrusted destinations.",
-      recommendedFix: 'Add rel="noopener noreferrer" to every link using target="_blank".',
-      htmlExample: `<a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.anchor_text || "Link text"}</a>`,
+        "Since 2021 all modern browsers imply noopener for target=\"_blank\", so the historic reverse-tabnabbing risk is already mitigated by default. Setting it explicitly is a defence-in-depth nicety, not a live vulnerability.",
+      rootCause: "The target=\"_blank\" attribute was added without an explicit rel=\"noopener\" attribute.",
+      seoImpact: "None. This is not an SEO issue and does not affect rankings or crawling.",
+      userImpact: "None in modern browsers, which already isolate the new tab. Only very old browsers lacked the implicit protection.",
+      recommendedFix: 'Optional: add rel="noopener" to links using target="_blank" for explicit clarity and to cover legacy browsers.',
+      htmlExample: `<a href="${link.url}" target="_blank" rel="noopener">${link.anchor_text || "Link text"}</a>`,
     };
   }
   if (link.is_weak_anchor) {

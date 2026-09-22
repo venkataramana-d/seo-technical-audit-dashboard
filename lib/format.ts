@@ -40,6 +40,8 @@ export function severityColor(severity: string): { text: string; bg: string } {
   if (s === "high") return { text: "var(--sev-high)", bg: "var(--sev-high-bg)" };
   if (s === "warning") return { text: "var(--sev-warning)", bg: "var(--sev-warning-bg)" };
   if (s === "medium") return { text: "var(--sev-medium)", bg: "var(--sev-medium-bg)" };
+  // Notice: advisory-only tier (0 score penalty). Muted grey, distinct from Low.
+  if (s === "notice") return { text: "var(--sev-notice)", bg: "var(--sev-notice-bg)" };
   return { text: "var(--sev-low)", bg: "var(--sev-low-bg)" };
 }
 

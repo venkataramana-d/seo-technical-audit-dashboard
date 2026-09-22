@@ -627,10 +627,19 @@ def _build_issues(checks, summary):
             for sel in popup.get("_popup_samples", [])[:50]
         ] or [{"value": f"{count} element(s)", "detail": "popup/modal/overlay pattern"}]
         issues.append({
-            "issue": f"Intrusive popup/modal patterns detected ({count} element(s))",
+            "issue": f"Popup/modal-like patterns detected ({count} element(s)) - verify manually",
             "category": "User Experience",
-            "severity": "Warning",
-            "recommendation": "Avoid intrusive interstitials that block content on mobile: they can incur a Google penalty.",
+            "severity": "Notice",
+            "recommendation": (
+                "Heuristic flag to verify manually - this is NOT a confirmed problem. "
+                "The detector matches popup/modal/overlay/interstitial/lightbox class or id "
+                "names in static HTML, which also match Bootstrap modals, cookie banners, and "
+                "user-triggered lightboxes that are perfectly fine. Static HTML cannot tell a "
+                "user-triggered modal from an on-load interstitial. Only interstitials that "
+                "block the main content on page load (Google's 'intrusive interstitial') can "
+                "harm mobile rankings - manually confirm whether any of these load on top of "
+                "content before treating them as an issue."
+            ),
             "impact_score": 6,
             "effort": "Medium",
             "affected": popup_affected,

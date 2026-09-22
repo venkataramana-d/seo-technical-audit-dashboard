@@ -56,6 +56,11 @@
   --sev-medium-bg: rgba(202, 138, 4, 0.08);
   --sev-low: #6366F1;
   --sev-low-bg: rgba(99, 102, 241, 0.08);
+  /* Notice: advisory only (browser-implied hardening, length overages, HTML5
+     multi-H1, etc). Muted grey so it reads as "for your awareness", not a
+     problem; scores 0 penalty (see modules/scoring.py PENALTY). */
+  --sev-notice: #64748B;
+  --sev-notice-bg: rgba(100, 116, 139, 0.08);
 
   --cwv-good-bg: rgba(16, 185, 129, 0.09);
   --cwv-good-text: #065F46;
@@ -171,6 +176,8 @@
   --color-sev-medium-bg: var(--sev-medium-bg);
   --color-sev-low: var(--sev-low);
   --color-sev-low-bg: var(--sev-low-bg);
+  --color-sev-notice: var(--sev-notice);
+  --color-sev-notice-bg: var(--sev-notice-bg);
 
   --font-sans: var(--font-inter-stack);
   --font-mono: var(--font-mono-stack);

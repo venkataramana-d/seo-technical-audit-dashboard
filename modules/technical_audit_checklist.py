@@ -23,10 +23,16 @@ def _item(check_id, label, group, status, detail=""):
 
 
 def _severity_status(issues, fail_severities=("Critical", "High")):
-    """Derive pass/warning/fail from a list of issue dicts."""
-    if not issues:
+    """Derive pass/warning/fail from a list of issue dicts.
+
+    "Notice" is advisory-only (0 score penalty) and must not turn a check yellow:
+    a page whose only findings are Notices is passing. So we ignore Notices when
+    deciding warning vs pass.
+    """
+    real_issues = [i for i in issues if i.get("severity") != "Notice"]
+    if not real_issues:
         return "pass"
-    severities = {i.get("severity") for i in issues}
+    severities = {i.get("severity") for i in real_issues}
     if severities & set(fail_severities):
         return "fail"
     return "warning"
@@ -97,14 +103,17 @@ def build_technical_audit_checklist(result: dict) -> dict:
     checks.append(_item("sitemap_validate", "Valid XML sitemap", "crawlability",
         sitemap_status, f"{sitemap.get('url_count', 0)} URL(s)" if sitemap.get("exists") else "Not found"))
 
+    # A missing or non-self-referencing canonical is NOT a warning: Google
+    # self-canonicalizes a page that omits the tag, and a canonical pointing
+    # elsewhere is often intentional. Only multiple conflicting canonical tags
+    # (a genuinely broken state) fail. (Clearly-broken canonical detection is
+    # left for a later phase.)
     if canonical.get("canonical_count", 0) > 1:
         canonical_status = "fail"
-    elif canonical.get("canonical_count", 0) == 0 or not canonical.get("is_self_referencing", True):
-        canonical_status = "warning"
     else:
         canonical_status = "pass"
     checks.append(_item("canonical_check", "Canonical tag present & self-referencing", "crawlability",
-        canonical_status, canonical.get("canonical_url", "") or "No canonical tag"))
+        canonical_status, canonical.get("canonical_url", "") or "No canonical tag (Google self-canonicalizes)"))
 
     checks.append(_item("meta_robots_check", "Indexable (meta robots / X-Robots-Tag)", "crawlability",
         "fail" if not indexability.get("is_indexable", True) else "pass",
@@ -146,23 +155,32 @@ def build_technical_audit_checklist(result: dict) -> dict:
         loop_status, ""))
 
     # ── On-page (11) ─────────────────────────────────────────────────────────
+    # Length outside the ~30-60 pixel-guidance band is advisory, not a warning:
+    # only a missing title fails. (Duplicate-title detection is cross-page and
+    # handled elsewhere.)
     if not metadata.get("has_title"):
         title_status = "fail"
-    elif not (30 <= metadata.get("title_length", 0) <= 60):
-        title_status = "warning"
     else:
         title_status = "pass"
+    title_len = metadata.get("title_length", 0)
+    title_detail = f"{title_len} chars"
+    if title_status == "pass" and not (30 <= title_len <= 60):
+        title_detail = f"{title_len} chars (outside 30-60 guidance, advisory)"
     checks.append(_item("title_check", "Title tag present & well-sized", "on_page",
-        title_status, f"{metadata.get('title_length', 0)} chars"))
+        title_status, title_detail))
 
+    # Length outside the ~150-160 pixel-guidance band is advisory, not a
+    # warning: only a missing description fails.
     if not metadata.get("has_description"):
         desc_status = "fail"
-    elif not (150 <= metadata.get("description_length", 0) <= 160):
-        desc_status = "warning"
     else:
         desc_status = "pass"
+    desc_len = metadata.get("description_length", 0)
+    desc_detail = f"{desc_len} chars"
+    if desc_status == "pass" and not (150 <= desc_len <= 160):
+        desc_detail = f"{desc_len} chars (outside 150-160 guidance, advisory)"
     checks.append(_item("meta_description_check", "Meta description present & well-sized", "on_page",
-        desc_status, f"{metadata.get('description_length', 0)} chars"))
+        desc_status, desc_detail))
 
     checks.append(_item("heading_check", "Heading structure valid", "on_page",
         _severity_status(heading_detail.get("issues", [])), ""))
@@ -171,10 +189,11 @@ def build_technical_audit_checklist(result: dict) -> dict:
     checks.append(_item("image_alt_check", "Images have alt text", "on_page",
         "fail" if missing_alt > 0 else "pass", f"{missing_alt} missing alt"))
 
+    # Thin content is a soft signal: under 300 words is at most a warning
+    # (not a fail), and 300-600 words is fine (a short page can fully answer a
+    # query). Only genuinely thin pages get flagged.
     word_count = content.get("word_count", 0)
     if word_count < 300:
-        wc_status = "fail"
-    elif word_count < 600:
         wc_status = "warning"
     else:
         wc_status = "pass"

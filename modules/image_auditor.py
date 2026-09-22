@@ -343,6 +343,15 @@ def _mark_lcp_candidate(images):
     """
     if not images:
         return
+
+    def _mark(img):
+        img["is_lcp_candidate"] = True
+        # An LCP / hero / above-the-fold image SHOULD NOT be lazy-loaded, so
+        # missing lazy loading is not an issue for it - drop that flag so it is
+        # not counted or reported.
+        if "Missing lazy loading" in (img.get("issues") or []):
+            img["issues"].remove("Missing lazy loading")
+
     raster = [img for img in images if img.get("format_label") not in ("SVG",)
               and img.get("url", "").startswith("http")]
     if not raster:
@@ -354,9 +363,9 @@ def _mark_lcp_candidate(images):
     if with_dims:
         best_img, best_area = max(with_dims, key=lambda x: x[1])
         if best_area > 0:
-            best_img["is_lcp_candidate"] = True
+            _mark(best_img)
             return
-    raster[0]["is_lcp_candidate"] = True
+    _mark(raster[0])
 
 
 def _populate_sizes(images, max_size_checks, base_url=""):
@@ -404,9 +413,9 @@ def _populate_sizes(images, max_size_checks, base_url=""):
             if img["is_broken"] and "Broken image (does not load)" not in img["issues"]:
                 img["issues"].append("Broken image (does not load)")
             # Update large image issue flag
-            if size_bytes is not None and size_bytes > 200 * 1024:
-                if "Large file size (> 200KB)" not in img["issues"]:
-                    img["issues"].append("Large file size (> 200KB)")
+            if size_bytes is not None and size_bytes > 300 * 1024:
+                if "Large file size (> 300KB)" not in img["issues"]:
+                    img["issues"].append("Large file size (> 300KB)")
 
 
 def _compute_summary(images, check_sizes):
@@ -420,7 +429,9 @@ def _compute_summary(images, check_sizes):
     empty_alt = sum(1 for i in imgs if i["alt_status"] == "empty")
     generic_alt = sum(1 for i in imgs if i["alt_status"] == "generic")
     keyword_stuffed_alt = sum(1 for i in imgs if i["alt_status"] == "keyword_stuffed")
-    no_lazy = sum(1 for i in imgs if not i["has_lazy"])
+    # LCP / hero / above-the-fold candidates are excluded: those images should
+    # NOT be lazy-loaded, so "missing lazy loading" is not a defect for them.
+    no_lazy = sum(1 for i in imgs if not i["has_lazy"] and not i.get("is_lcp_candidate"))
     no_dimensions = sum(1 for i in imgs if not i["has_dimensions"])
     non_webp = sum(1 for i in images if i["extension"] in ("jpg", "jpeg", "png"))
     bad_naming = sum(1 for i in images if i["naming_quality"] == "bad")
@@ -437,7 +448,7 @@ def _compute_summary(images, check_sizes):
     if check_sizes:
         large_images = sum(
             1 for i in images
-            if i["file_size_bytes"] is not None and i["file_size_bytes"] > 200 * 1024
+            if i["file_size_bytes"] is not None and i["file_size_bytes"] > 300 * 1024
         )
         broken_images = sum(1 for i in images if i.get("is_broken") is True)
 
@@ -556,8 +567,13 @@ def _build_issues(summary, check_sizes, images=None):
         issues.append({
             "issue": f"{n['no_lazy']} image(s) missing lazy loading",
             "category": "Performance",
-            "severity": "Low",
-            "recommendation": "Add loading='lazy' to below-the-fold images to improve page load speed.",
+            "severity": "Notice",
+            "recommendation": (
+                "Add loading='lazy' to below-the-fold images to improve page load speed. "
+                "Do NOT lazy-load above-the-fold or LCP/hero images - lazy-loading the "
+                "largest visible image delays LCP and hurts Core Web Vitals. The likely "
+                "LCP candidate has already been excluded from this count."
+            ),
             "impact_score": 4,
             "effort": "Low",
             "affected": _aff("Missing lazy loading"),
@@ -568,7 +584,12 @@ def _build_issues(summary, check_sizes, images=None):
             "issue": f"{n['no_dimensions']} image(s) missing width/height dimensions",
             "category": "Performance",
             "severity": "Medium",
-            "recommendation": "Specify width and height attributes to prevent layout shifts (CLS).",
+            "recommendation": (
+                "Specify width and height attributes to prevent layout shifts (CLS). "
+                "A CSS aspect-ratio (or width/height in CSS) also reserves the space and "
+                "satisfies this - the image does not need HTML width/height attributes if "
+                "the layout already reserves its dimensions."
+            ),
             "impact_score": 6,
             "effort": "Low",
             "affected": _aff("Missing width/height dimensions"),
@@ -609,13 +630,13 @@ def _build_issues(summary, check_sizes, images=None):
 
     if check_sizes and n["large_images"] > 0:
         issues.append({
-            "issue": f"{n['large_images']} image(s) are larger than 200KB",
+            "issue": f"{n['large_images']} image(s) are larger than 300KB",
             "category": "Performance",
-            "severity": "High",
-            "recommendation": "Compress images or switch to WebP/AVIF to keep file sizes under 200KB.",
+            "severity": "Warning",
+            "recommendation": "Compress images or switch to WebP/AVIF to keep file sizes under 300KB.",
             "impact_score": 8,
             "effort": "Medium",
-            "affected": _aff("Large file size (> 200KB)"),
+            "affected": _aff("Large file size (> 300KB)"),
         })
 
     return issues

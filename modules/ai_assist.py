@@ -85,7 +85,7 @@ def _parse_summary_reply(reply: str) -> tuple[str, list[str]]:
     return " ".join(explanation_lines[:4]), action_lines[:5]
 
 
-_SEVERITY_RANK = {"Critical": 0, "High": 1, "Medium": 2, "Warning": 3, "Low": 4}
+_SEVERITY_RANK = {"Critical": 0, "High": 1, "Medium": 2, "Warning": 3, "Low": 4, "Notice": 5}
 
 
 def _aggregate_issues(all_issues: list[dict]) -> tuple[list[dict], dict]:

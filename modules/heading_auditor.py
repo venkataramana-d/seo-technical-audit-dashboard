@@ -226,9 +226,14 @@ def _build_issues(headings, counts, violations, empty_headings, duplicate_headin
         issues.append({
             "issue": f"Multiple H1 headings found ({counts['h1']})",
             "category": "Heading Structure",
-            "severity": "High",
-            "recommendation": "Use only one H1 per page to clearly signal the primary topic to search engines.",
-            "impact_score": 7,
+            "severity": "Notice",
+            "recommendation": (
+                "Advisory only: multiple H1 tags are valid in HTML5 and Google "
+                "has confirmed it handles them fine. No action is required. If "
+                "you prefer a single clear topic signal you may consolidate to "
+                "one H1, but this does not affect rankings."
+            ),
+            "impact_score": 1,
             "effort": "Low",
             "affected": [
                 {
@@ -266,27 +271,27 @@ def _build_issues(headings, counts, violations, empty_headings, duplicate_headin
                 ],
             })
 
-    # Skipped heading levels: one issue per violation
-    for v in violations:
+    # Skipped heading levels: a single consolidated advisory issue that lists
+    # every skip in its `affected` list (rather than one issue per skip).
+    if violations:
         issues.append({
-            "issue": (
-                f"Skipped heading level: H{v['from_level']} → H{v['to_level']} "
-                f"(position {v['position']})"
-            ),
+            "issue": f"Skipped heading levels detected ({len(violations)} found)",
             "category": "Heading Structure",
-            "severity": "Warning",
+            "severity": "Notice",
             "recommendation": (
-                f"Do not skip from H{v['from_level']} to H{v['to_level']}. "
-                f"Use sequential heading levels to maintain document outline."
+                "Advisory: use sequential heading levels (e.g. H2 → H3, not "
+                "H2 → H4) to keep a clean document outline for accessibility. "
+                "This does not affect rankings."
             ),
-            "impact_score": 5,
+            "impact_score": 2,
             "effort": "Low",
             "affected": [
                 {
                     "value": f"H{v['from_level']} -> H{v['to_level']}",
-                    "detail": "skipped level",
+                    "detail": f"skipped level (position {v['position']})",
                 }
-            ],
+                for v in violations
+            ][:50],
         })
 
     # Empty headings
@@ -328,9 +333,9 @@ def _build_issues(headings, counts, violations, empty_headings, duplicate_headin
             issues.append({
                 "issue": f"Duplicate {level.upper()} headings found: {', '.join(dupes[:3])}",
                 "category": "Heading Structure",
-                "severity": "Warning",
-                "recommendation": f"Ensure each {level.upper()} has unique text to avoid confusion for users and crawlers.",
-                "impact_score": 5,
+                "severity": "Notice",
+                "recommendation": f"Advisory: consider giving each {level.upper()} unique text to avoid confusion for users and crawlers.",
+                "impact_score": 2,
                 "effort": "Medium",
                 "affected": affected[:50],
             })
@@ -340,9 +345,9 @@ def _build_issues(headings, counts, violations, empty_headings, duplicate_headin
         issues.append({
             "issue": "No H2 headings found despite H1 being present",
             "category": "Heading Structure",
-            "severity": "Warning",
-            "recommendation": "Add H2 subheadings to break content into logical sections and improve scannability.",
-            "impact_score": 4,
+            "severity": "Notice",
+            "recommendation": "Advisory: adding H2 subheadings can break content into logical sections and improve scannability.",
+            "impact_score": 2,
             "effort": "Medium",
             "affected": [
                 {

@@ -860,11 +860,11 @@ def _summarize_internal(links):
     if miss_no > 0:
         issues.append({
             "issue": f"Internal Links Opening in New Tab Without rel='noopener' ({miss_no})", "category": "Internal Links",
-            # Low, not Medium: this is a security/perf best-practice, NOT an SEO
-            # ranking factor, and modern browsers imply `noopener` for
-            # target="_blank" automatically (since ~2021), so it rarely matters.
-            "severity": "Low", "impact_score": 2, "effort": "Low",
-            "recommendation": "Add rel='noopener noreferrer' to links that open in new tabs. Note: modern browsers already imply noopener for target=\"_blank\", so this is a minor hardening, not an SEO issue.",
+            # Notice (0 score penalty): advisory only. Modern browsers imply
+            # `noopener` for target="_blank" automatically (since ~2021), so this
+            # is neither a security concern in practice nor an SEO ranking factor.
+            "severity": "Notice", "impact_score": 0, "effort": "Low",
+            "recommendation": "Advisory only: browsers have implied noopener for target=\"_blank\" since 2021, so no action is required. This is not an SEO issue. If you want explicit hardening for very old browsers, you may add rel='noopener noreferrer'.",
         })
     if weak_a > 0:
         issues.append({
@@ -926,16 +926,42 @@ def _summarize_external(links):
     if miss_noop > 0:
         issues.append({
             "issue": f"External Links Missing rel='noopener' ({miss_noop})", "category": "External Links",
-            # Low, not Medium: security/perf best-practice, not an SEO ranking
-            # factor; modern browsers imply noopener for target="_blank" since ~2021.
-            "severity": "Low", "impact_score": 2, "effort": "Low",
-            "recommendation": "Add rel='noopener noreferrer' to external links that open in new tabs. Note: modern browsers already imply noopener for target=\"_blank\", so this is minor hardening, not an SEO issue.",
+            # Notice (0 score penalty): advisory only. Modern browsers imply
+            # noopener for target="_blank" since ~2021, so this is neither a
+            # practical security concern nor an SEO ranking factor.
+            "severity": "Notice", "impact_score": 0, "effort": "Low",
+            "recommendation": "Advisory only: browsers have implied noopener for target=\"_blank\" since 2021, so no action is required. This is not an SEO issue. If you want explicit hardening for very old browsers, you may add rel='noopener noreferrer'.",
         })
-    if dofollow > 50:
+    # Paid/affiliate links that are follow (no rel qualifier) should carry
+    # rel="sponsored" under Google's link-spam policy. Conservative keyword match
+    # on the URL to avoid false positives.
+    # High-precision affiliate/ad markers only. Deliberately conservative: broad
+    # tokens like "aff", "ref=", "utm_", "tag=", "partner", "/go/" match ordinary
+    # outbound links (utm-tagged shares, "staff"/"traffic", internal /go/ routers)
+    # and would reintroduce the false positives Phase 1 is removing. We flag only
+    # unambiguous affiliate networks / explicit affiliate tokens.
+    _AFFILIATE_MARKERS = (
+        "affiliate", "aff_id", "affid=", "/aff/", "clickbank.net",
+        "amzn.to", "shareasale.com", "cj.com", "anrdoezrs.net",
+        "impact.com", "awin1.com", "linksynergy.com", "rakuten",
+        "prf.hn", "sjv.io", "redirectingat.com",
+    )
+    affiliate_missing = [
+        l for l in links
+        if l["is_dofollow"]
+        and not l.get("is_sponsored") and not l.get("is_ugc")
+        and any(m in (l.get("url") or "").lower() for m in _AFFILIATE_MARKERS)
+    ]
+    if affiliate_missing:
+        n = len(affiliate_missing)
         issues.append({
-            "issue": f"Very High Dofollow External Link Count ({dofollow})", "category": "External Links",
-            "severity": "Warning", "impact_score": 4, "effort": "Medium",
-            "recommendation": "Review excessive external dofollow links: add rel='nofollow' for commercial or low-authority destinations.",
+            "issue": f"Paid/Affiliate Links Missing rel='sponsored' ({n})", "category": "External Links",
+            "severity": "Warning", "impact_score": 5, "effort": "Low",
+            "recommendation": "Google's link-spam policy requires rel=\"sponsored\" (or rel=\"nofollow\") on paid, affiliate, and sponsored links. These follow links point to affiliate/ad/tracking destinations without a rel qualifier: add rel=\"sponsored\" to stay compliant and avoid manual actions.",
+            "affected": [
+                {"value": l["url"], "detail": "follow link, no rel='sponsored'"}
+                for l in affiliate_missing
+            ][:50],
         })
     if weak_a > 0:
         issues.append({

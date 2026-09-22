@@ -416,8 +416,8 @@ def check_readability(text: str) -> dict:
         return {"available": True, "fk_grade": fk_grade, "reading_ease": ease, "issues": []}
 
     if fk_grade > 14:
-        issues.append(_issue(f"Difficult Readability (Grade {fk_grade})", "Content", "Warning",
-            "Simplify sentence structure and vocabulary to lower the reading grade level.",
+        issues.append(_issue(f"Difficult Readability (Grade {fk_grade})", "Content", "Notice",
+            "Advisory: reading level is not a ranking factor, and B2B/technical copy is legitimately higher. If a broader audience is the goal, consider simpler sentence structure and vocabulary.",
             impact_score=4, effort="Medium",
             affected=[{"value": f"Flesch-Kincaid grade {fk_grade}", "detail": f"Reading ease {ease}"}]))
     elif fk_grade > 10:
@@ -482,8 +482,8 @@ def check_content_freshness(http_headers: dict, soup) -> dict:
 
     issues = []
     if age_days > 730:
-        issues.append(_issue(f"Content Is ~{age_days // 30} Months Old", "Content", "Warning",
-            "Refresh this content: search engines favour recently updated pages for time-sensitive queries.",
+        issues.append(_issue(f"Content Is ~{age_days // 30} Months Old", "Content", "Notice",
+            "Advisory: evergreen content is fine and Last-Modified is an unreliable freshness signal. For time-sensitive queries, refreshing recently updated pages can help; otherwise no action needed.",
             impact_score=4, effort="Medium",
             affected=[{"value": str(raw_date), "detail": f"Last modified ~{age_days} days ago"}]))
 

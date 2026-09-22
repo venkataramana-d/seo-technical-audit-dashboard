@@ -2,11 +2,74 @@
 a live-but-access-limited link (403 WAF / 429 rate-limit / 503 / timeout) must
 NOT be classified as broken, only genuinely dead resources (404/410/5xx) are."""
 
+from bs4 import BeautifulSoup
+
 from modules.link_auditor import (
     WEAK_ANCHORS,
+    audit_links,
     categorize_domain,
     link_health,
 )
+
+
+def _all_link_issues(html, base_url="https://example.com/blog/post"):
+    soup = BeautifulSoup(html, "lxml")
+    res = audit_links(soup, base_url, validate=False)
+    return res["internal"]["issues"] + res["external"]["issues"]
+
+
+def test_correct_blog_links_produce_no_warning_or_worse():
+    """Phase 1 headline guard: a correctly-built blog page (new-tab links with
+    rel='noopener noreferrer', dofollow internal + external editorial links)
+    must NOT raise any Warning/Medium/High/Critical link issue. Only advisory
+    Notices are acceptable. This is the exact false-positive the user hit."""
+    links = "".join(
+        f'<a href="https://ref-site-{i}.com/article" target="_blank" '
+        f'rel="noopener noreferrer">Descriptive external source {i}</a>'
+        for i in range(60)  # >50: used to trip "Very High Dofollow" (now removed)
+    )
+    internal = "".join(
+        f'<a href="/blog/related-{i}">Descriptive internal link {i}</a>'
+        for i in range(5)
+    )
+    html = f"<html><body><article>{internal}{links}</article></body></html>"
+
+    bad = [
+        i for i in _all_link_issues(html)
+        if i.get("severity") in ("Warning", "Medium", "High", "Critical")
+    ]
+    assert bad == [], f"correct blog links should not warn, got: {[b['issue'] for b in bad]}"
+
+
+def test_new_tab_with_rel_is_not_flagged():
+    """A new-tab link that correctly carries rel='noopener' must not appear in
+    any noopener finding (the finding is only for links MISSING it, and is a
+    Notice regardless)."""
+    html = (
+        '<html><body>'
+        '<a href="https://x.com/" target="_blank" rel="noopener noreferrer">ok</a>'
+        '</body></html>'
+    )
+    issues = _all_link_issues(html)
+    noopener = [i for i in issues if "noopener" in i.get("issue", "").lower()]
+    assert noopener == []
+
+
+def test_affiliate_follow_link_flagged_but_plain_outbound_is_not():
+    """The new sponsored-link check must flag a clear affiliate destination that
+    is follow, but NOT ordinary outbound links (incl. utm-tagged ones)."""
+    html = (
+        '<html><body>'
+        '<a href="https://www.amzn.to/xyz">buy</a>'                      # affiliate, follow
+        '<a href="https://news.example.org/story?utm_source=nl">news</a>'  # plain outbound + utm
+        '</body></html>'
+    )
+    issues = _all_link_issues(html)
+    sponsored = [i for i in issues if "sponsored" in i.get("issue", "").lower()]
+    assert len(sponsored) == 1
+    values = [a["value"] for a in sponsored[0]["affected"]]
+    assert any("amzn.to" in v for v in values)
+    assert not any("news.example.org" in v for v in values)
 
 
 def test_link_health_broken_only_for_dead_codes():

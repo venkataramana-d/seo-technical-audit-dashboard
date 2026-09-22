@@ -45,7 +45,7 @@ export const CHECK_DEFS: CheckDef[] = [
   { id: "sitemap_validate", label: "Valid XML sitemap", group: "crawlability",
     description: "Confirms the site's sitemap.xml exists, parses correctly, and isn't full of duplicate or malformed entries." },
   { id: "canonical_check", label: "Canonical tag present & self-referencing", group: "crawlability",
-    description: "Checks exactly one canonical tag exists and points to this page itself, preventing duplicate-content confusion." },
+    description: "Flags only conflicting canonical tags (more than one). A missing canonical is fine — Google self-canonicalizes — and a canonical pointing elsewhere is often intentional." },
   { id: "meta_robots_check", label: "Indexable (meta robots / X-Robots-Tag)", group: "crawlability",
     description: "Makes sure nothing (meta tag or HTTP header) is accidentally telling search engines not to index this page." },
   { id: "hreflang_check", label: "Hreflang tags valid (if present)", group: "crawlability",
@@ -59,11 +59,11 @@ export const CHECK_DEFS: CheckDef[] = [
 
   // On-Page (11)
   { id: "title_check", label: "Title tag present & well-sized", group: "on_page",
-    description: "Checks the page has a unique title tag between roughly 30-60 characters: the headline shown in search results." },
+    description: "Checks the page has a title tag (the headline shown in search results). The ~30-60 character range is advisory pixel guidance for how much shows in results, not a hard limit — length alone is not flagged." },
   { id: "meta_description_check", label: "Meta description present & well-sized", group: "on_page",
-    description: "Checks the page has a compelling meta description around 150-160 characters: the preview text shown in search results." },
+    description: "Checks the page has a meta description (the preview text shown in search results). The ~150-160 character range is advisory pixel guidance, not a hard limit — length alone is not flagged." },
   { id: "heading_check", label: "Heading structure valid", group: "on_page",
-    description: "Verifies headings (H1-H6) follow a logical, sequential structure: exactly one H1, no skipped levels." },
+    description: "Reviews the heading (H1-H6) outline. Multiple H1 tags are valid in HTML5 and fine for Google, so a single H1 is not required; skipped levels are advisory for accessibility." },
   { id: "image_alt_check", label: "Images have alt text", group: "on_page",
     description: "Checks every image has descriptive alt text, important for accessibility and how images rank in image search." },
   { id: "word_count_check", label: "Sufficient content depth", group: "on_page",

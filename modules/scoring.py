@@ -21,6 +21,8 @@ PENALTY = {
     "Medium":   8,
     "Warning":  6,   # Warning < Medium: it is a caution, not a confirmed problem
     "Low":      2,
+    "Notice":   0,   # advisory only (browser-implied hardening, length overages,
+                     # HTML5 multi-H1): surfaced for awareness, never drags score
 }
 
 # SEMrush-style thematic groupings.

@@ -167,7 +167,10 @@ def test_hreflang_present_without_xdefault_is_warning():
     assert _find(checklist, "hreflang_check")["status"] == "warning"
 
 
-def test_thin_content_fails_word_count_check():
+def test_thin_content_warns_word_count_check():
+    # Thin content (<300 words) is a soft signal: at most a warning, not a fail.
+    # Word count is not a Google ranking factor, and short pages can fully answer
+    # a query, so we no longer fail the check (Phase 1 severity recalibration).
     result = _base_result(content={"word_count": 120})
     checklist = build_technical_audit_checklist(result)
-    assert _find(checklist, "word_count_check")["status"] == "fail"
+    assert _find(checklist, "word_count_check")["status"] == "warning"
