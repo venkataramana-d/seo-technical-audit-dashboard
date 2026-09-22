@@ -327,20 +327,36 @@ export function locateAndHighlight(
   return true;
 }
 
+/** Issue categories whose offending element has a home in a detail tab we can
+ * jump to (Technical tab for canonical/robots/hreflang/schema/redirects/etc,
+ * Links tab for links, Images tab for images). Used to decide when to show the
+ * "Locate" jump even for non-URL values (e.g. a hreflang code, a schema type). */
+const LOCATABLE_CATEGORY_RE =
+  /link|image|canonical|indexab|international|structured data|redirect|technical|mobile|security|site health|social|metadata|heading/i;
+
+export function isLocatableCategory(category?: string): boolean {
+  return !!category && LOCATABLE_CATEGORY_RE.test(category);
+}
+
 /** One affected value, monospace + truncated (title = full). URL/image-like
  * values render as a new-tab link; a "Locate" affordance (when `onLocate` is
- * given) jumps to the matching row in the relevant detail table. */
+ * given) jumps to the matching row in the relevant detail tab. `locateCategory`
+ * carries the issue's category so the jump routes to the right tab even when the
+ * value isn't a URL. */
 function AffectedValue({
   value,
   baseUrl,
   onLocate,
+  locateCategory,
 }: {
   value: string;
   baseUrl?: string;
-  onLocate?: (value: string) => void;
+  onLocate?: (value: string, category?: string) => void;
+  locateCategory?: string;
 }) {
   const linkable = looksLikeUrl(value) || looksLikeImage(value);
   const href = linkable ? affectedHref(value, baseUrl) : null;
+  const canLocate = linkable || isLocatableCategory(locateCategory);
   return (
     <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
       {href ? (
@@ -358,10 +374,10 @@ function AffectedValue({
           {value}
         </span>
       )}
-      {onLocate && linkable ? (
+      {onLocate && canLocate ? (
         <button
           type="button"
-          onClick={() => onLocate(value)}
+          onClick={() => onLocate(value, locateCategory)}
           title="Find this element in the detailed table"
           className="shrink-0 rounded px-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--seo-muted)] transition-colors hover:bg-[var(--seo-card-hover)] hover:text-[var(--seo-accent)]"
         >
@@ -384,11 +400,13 @@ export function AffectedList({
   affected,
   baseUrl,
   onLocate,
+  locateCategory,
   cap = 15,
 }: {
   affected: AffectedElement[];
   baseUrl?: string;
-  onLocate?: (value: string) => void;
+  onLocate?: (value: string, category?: string) => void;
+  locateCategory?: string;
   cap?: number;
 }) {
   const [showAll, setShowAll] = useState(false);
@@ -403,7 +421,7 @@ export function AffectedList({
       <ul className="flex flex-col gap-1">
         {visible.map((a, i) => (
           <li key={`${a.value}-${i}`} className="flex items-baseline gap-2 text-xs leading-relaxed">
-            <AffectedValue value={a.value} baseUrl={baseUrl} onLocate={onLocate} />
+            <AffectedValue value={a.value} baseUrl={baseUrl} onLocate={onLocate} locateCategory={locateCategory} />
             {a.detail ? (
               <span className="shrink-0 text-[var(--seo-muted)]" title={a.detail}>
                 {a.detail}
@@ -456,7 +474,7 @@ export function IssueRow({
   issue: Issue;
   pageContext?: FixPageContext;
   groqApiKey?: string;
-  onLocate?: (value: string) => void;
+  onLocate?: (value: string, category?: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const explanation = explainCommonIssue(issue);
@@ -494,7 +512,7 @@ export function IssueRow({
       </button>
       {affected.length > 0 ? (
         <div className="pb-3">
-          <AffectedList affected={affected} baseUrl={pageContext?.url} onLocate={onLocate} />
+          <AffectedList affected={affected} baseUrl={pageContext?.url} onLocate={onLocate} locateCategory={issue.category} />
         </div>
       ) : (
         <div className="pb-3" />
@@ -507,7 +525,7 @@ export function IssueRow({
               <h5 className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--seo-muted)]">
                 Where it occurs
               </h5>
-              <AffectedList affected={affected} baseUrl={pageContext?.url} onLocate={onLocate} />
+              <AffectedList affected={affected} baseUrl={pageContext?.url} onLocate={onLocate} locateCategory={issue.category} />
             </div>
           ) : null}
           {fixTarget && pageContext ? (

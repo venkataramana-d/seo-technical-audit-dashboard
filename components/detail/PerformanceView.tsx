@@ -38,6 +38,23 @@ const CWV_SUGGESTION: Record<string, string> = {
   inp: "Reduce input-handler latency: split long tasks, trim large JS bundles that block the main thread, and keep event callbacks fast.",
 };
 
+// Field (real-user CrUX) Core Web Vitals returned by modules/pagespeed.py as
+// livePsi.field. Order follows Google's own CrUX priority; each entry may be
+// absent from the payload when that metric has no field data.
+const FIELD_METRICS: { key: string; label: string }[] = [
+  { key: "lcp", label: "LCP" },
+  { key: "inp", label: "INP" },
+  { key: "cls", label: "CLS" },
+  { key: "fcp", label: "FCP" },
+  { key: "ttfb", label: "TTFB" },
+];
+
+const FIELD_STATUS_LABEL: Record<string, string> = {
+  good: "Good",
+  "needs-improvement": "Needs work",
+  poor: "Poor",
+};
+
 interface MobileCheck {
   id: string;
   name: string;
@@ -64,6 +81,24 @@ function cwvColor(status: string) {
   if (status === "warning") return { text: "var(--cwv-needs-text)", bg: "var(--cwv-needs-bg)" };
   if (status === "fail") return { text: "var(--cwv-poor-text)", bg: "var(--cwv-poor-bg)" };
   return { text: "var(--seo-muted)", bg: "var(--seo-card-hover)" };
+}
+
+/** Field (CrUX) status → color tokens. The backend emits "good" |
+ * "needs-improvement" | "poor" (distinct from the lab pass/warning/fail that
+ * cwvColor handles), so this maps them to the shared --seo-* status tokens. */
+function fieldStatusColor(status: string) {
+  if (status === "good") return { text: "var(--seo-success)", bg: "var(--seo-success-bg)" };
+  if (status === "needs-improvement") return { text: "var(--seo-warning)", bg: "var(--seo-warning-bg)" };
+  if (status === "poor") return { text: "var(--seo-error)", bg: "var(--seo-error-bg)" };
+  return { text: "var(--seo-muted)", bg: "var(--seo-card-hover)" };
+}
+
+/** Format a p75 field percentile: CLS is unitless (2 decimals); the rest are
+ * milliseconds, shown as seconds once they cross 1000ms to stay readable. */
+function formatFieldValue(key: string, percentile: number) {
+  if (key === "cls") return percentile.toFixed(2);
+  if (percentile >= 1000) return `${(percentile / 1000).toFixed(2)} s`;
+  return `${Math.round(percentile)} ms`;
 }
 
 const CATEGORY_ORDER = [
@@ -186,6 +221,61 @@ export function PerformanceView({
             />
             <MetricCard label="CWV Source" value={cwv.source || "N/A"} />
           </div>
+
+          {livePsi ? (
+            livePsi.field ? (
+              <Card>
+                <div className="mb-1 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-[var(--seo-subheading)]">
+                    Field Data (real users, CrUX)
+                  </h3>
+                  {livePsi.field_overall ? (
+                    <span className="text-xs font-semibold uppercase text-[var(--seo-muted)]">
+                      Overall: {livePsi.field_overall}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mb-3 text-xs text-[var(--seo-text-light)]">
+                  p75 field data from the Chrome UX Report — what real Chrome users actually
+                  experienced, and what Google ranks on. The lab Core Web Vitals below are
+                  diagnostic (a single simulated load). Scope:{" "}
+                  {livePsi.field.scope === "origin"
+                    ? "origin (site-wide) fallback"
+                    : "page-level"}
+                  . INP replaced FID as a Core Web Vital in 2024.
+                </p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                  {FIELD_METRICS.map(({ key, label }) => {
+                    const metric = livePsi.field[key];
+                    if (!metric || metric.percentile == null) return null;
+                    const colors = fieldStatusColor(metric.status);
+                    return (
+                      <div
+                        key={key}
+                        className="rounded-lg border border-[var(--seo-border)] p-3 text-center"
+                      >
+                        <div className="text-xs uppercase text-[var(--seo-muted)]">{label}</div>
+                        <div className="mt-1 text-lg font-bold text-[var(--seo-text)]">
+                          {formatFieldValue(key, metric.percentile)}
+                        </div>
+                        <span
+                          className="mt-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                          style={{ color: colors.text, backgroundColor: colors.bg }}
+                        >
+                          {FIELD_STATUS_LABEL[metric.status] || metric.status}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            ) : (
+              <div className="rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-hover)] px-3 py-2 text-xs text-[var(--seo-muted)]">
+                No field (CrUX) data — this page/origin doesn&apos;t have enough real-user
+                traffic yet.
+              </div>
+            )
+          ) : null}
 
           <Card>
             <div className="mb-3 flex items-center justify-between">

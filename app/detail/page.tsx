@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import Link from "next/link";
 import { useAudit } from "@/lib/state/AuditContext";
-import { Card, DifficultyBadge, EmptyState, HelpSection, IssueRow, looksLikeImage, looksLikeUrl, PageHeader, ScoreBadge, StatusPill, TabBar } from "@/components/ui";
+import { Card, DifficultyBadge, EmptyState, HelpSection, IssueRow, locateAndHighlight, looksLikeImage, looksLikeUrl, PageHeader, ScoreBadge, StatusPill, TabBar } from "@/components/ui";
 import { GlobeIcon } from "@/components/icons";
 import { difficultyBreakdown } from "@/lib/difficulty";
 import { getThematicIssues, getTopIssuesByImpact } from "@/lib/aggregate";
@@ -160,11 +160,48 @@ export default function DetailPage() {
   const focusSeqRef = useRef(0);
   const [focus, setFocus] = useState<{ value: string; seq: number } | null>(null);
 
-  function locateElement(value: string) {
-    // Image srcs live in the Images tab; link targets in Links → Links.
-    // Anything else (title/H1 text, robots directive, etc.) has no row-level
-    // table, so we leave the tab as-is and just flag the value.
-    if (looksLikeImage(value)) {
+  // Technical tab is rendered inline (not a child view with its own focus
+  // handling like Links/Performance), so highlight its offending element here:
+  // once the tab has switched and rendered, scroll to + ring the matching
+  // [data-locate-value] anchor. Fuzzy so "Article.headline" matches the "Article"
+  // schema pill and a hreflang url/lang matches its row. setState-free (DOM only)
+  // and run in rAF, per the repo's react-hooks/set-state-in-effect rule.
+  const technicalRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!focus || tab !== "Technical") return;
+    // The Technical tab is conditionally rendered, so its [data-locate-value]
+    // anchors may not be in the DOM on the first frame after the tab switch.
+    // Retry (via self-rescheduling timeouts, which survive React's dev
+    // double-invoke of effects) until the target is found or we give up.
+    let attempts = 0;
+    let timer: number | undefined;
+    const tryHighlight = () => {
+      const ok = locateAndHighlight(technicalRef.current, focus.value, { fuzzy: true });
+      attempts += 1;
+      if (!ok && attempts < 12) {
+        timer = window.setTimeout(tryHighlight, 80);
+      }
+    };
+    timer = window.setTimeout(tryHighlight, 0);
+    return () => {
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [focus, tab]);
+
+  function locateElement(value: string, category?: string) {
+    // Route to the tab whose detail view shows this element. Prefer the issue's
+    // CATEGORY (a canonical URL and a link target are both URLs, so value shape
+    // alone can't tell them apart), then fall back to the value's shape.
+    const cat = (category || "").toLowerCase();
+    if (/image/.test(cat)) {
+      setTab("Images");
+    } else if (/link/.test(cat)) {
+      setTab("Links");
+    } else if (/canonical|indexab|international|structured data|redirect|technical|mobile|security|site health|social|metadata|heading/.test(cat)) {
+      // Canonical, robots/indexability, hreflang, schema, redirect chain, etc.
+      // all have their raw element rendered in the Technical tab.
+      setTab("Technical");
+    } else if (looksLikeImage(value)) {
       setTab("Images");
     } else if (looksLikeUrl(value)) {
       setTab("Links");
@@ -377,7 +414,7 @@ export default function DetailPage() {
             const redirectChain: string[] = r.redirect_analysis?.chain || r.redirect_chain || [];
 
             return (
-              <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-6" ref={technicalRef}>
                 <Card>
                   <div className="flex flex-wrap items-center gap-4 text-sm">
                     <span className="font-semibold text-[var(--seo-subheading)]">
@@ -417,6 +454,27 @@ export default function DetailPage() {
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                       <ChecklistGroupCard group="crawlability" items={filteredGroups.crawlability} />
                       <div className="flex flex-col gap-4">
+                        <Card>
+                          <h4 className="mb-2 text-sm font-semibold text-[var(--seo-subheading)]">
+                            Indexability &amp; Canonical
+                          </h4>
+                          <Row label="Indexable">
+                            <BoolBadge ok={r.indexability?.is_indexable !== false} yes="Yes" no="Noindex" />
+                          </Row>
+                          <Row label="Meta robots">{r.indexability?.robots_meta || "not set"}</Row>
+                          <div
+                            data-locate-value={r.canonical?.canonical_url || ""}
+                            className="flex items-start justify-between gap-3 border-t border-[var(--seo-border)] py-1.5 text-sm"
+                          >
+                            <span className="shrink-0 text-[var(--seo-muted)]">Canonical</span>
+                            <span className="max-w-[70%] break-words text-right font-mono text-xs text-[var(--seo-text-light)]">
+                              {r.canonical?.canonical_url || "self / not set"}
+                              {r.canonical?.canonical_url && r.canonical?.is_self_ref === false ? (
+                                <span className="ml-1 text-[var(--seo-warning)]">(cross-URL)</span>
+                              ) : null}
+                            </span>
+                          </div>
+                        </Card>
                         {redirectChain.length > 1 ? (
                           <Card>
                             <h4 className="mb-2 text-sm font-semibold text-[var(--seo-subheading)]">
@@ -424,7 +482,7 @@ export default function DetailPage() {
                             </h4>
                             <div className="flex flex-col gap-1 text-sm">
                               {redirectChain.map((u, i) => (
-                                <div key={`${u}-${i}`} className="flex items-center gap-2">
+                                <div key={`${u}-${i}`} data-locate-value={u} className="flex items-center gap-2 rounded px-1">
                                   <span className="text-xs text-[var(--seo-muted)]">{i + 1}.</span>
                                   <span className="truncate text-[var(--seo-text-light)]">{u}</span>
                                 </div>
@@ -441,10 +499,11 @@ export default function DetailPage() {
                               {hreflang.map((h, i) => (
                                 <div
                                   key={`${h.lang}-${i}`}
+                                  data-locate-value={h.lang}
                                   className="flex items-center justify-between gap-3 border-b border-[var(--seo-border)] py-1.5 text-sm last:border-0"
                                 >
                                   <span className="font-mono text-xs text-[var(--seo-accent)]">{h.lang}</span>
-                                  <span className="max-w-[70%] truncate text-right text-[var(--seo-text-light)]">{h.url}</span>
+                                  <span data-locate-value={h.url} className="max-w-[70%] truncate text-right text-[var(--seo-text-light)]">{h.url}</span>
                                 </div>
                               ))}
                             </div>
@@ -480,6 +539,7 @@ export default function DetailPage() {
                               {schemaTypes.map((t, i) => (
                                 <span
                                   key={`${t}-${i}`}
+                                  data-locate-value={t}
                                   className="pill"
                                   style={{ color: "var(--seo-accent)", backgroundColor: "var(--seo-accent-light)" }}
                                 >

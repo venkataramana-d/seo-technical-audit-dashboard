@@ -150,6 +150,17 @@ These are the checks a best-in-class technical auditor has; ordered by impact.
 ---
 
 # Phase 4 — "Jump to exactly where" for technical issues  *(UX; builds on existing LOCATE)*
+
+> **Status (shipped):** ✅ Every issue's `affected` element now carries the issue
+> CATEGORY through the Locate control, so a technical finding routes to the
+> **Technical** tab (not misrouted to Links by value shape) and rings the exact
+> row via `data-locate-value` anchors on the canonical, meta-robots, hreflang
+> (lang + url), redirect-hop and schema-type elements — including non-URL values
+> like a hreflang code. Added an **Indexability & Canonical** card to the
+> Technical tab. ✅ The Performance view now renders the **field (CrUX) CWV**
+> card (LCP/INP/CLS/FCP/TTFB p75 with good/needs-improvement/poor) from the
+> Phase-3 backend data. Redirect **hop statuses** remain future work (we capture
+> the hop URLs, not each hop's status code).
 Extend the affected-element + LOCATE pattern (already live for images/links) to
 every technical issue so clicking a finding lands on the exact place:
 - Canonical / robots / hreflang issues → jump to the **Technical** tab and
