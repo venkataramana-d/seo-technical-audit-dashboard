@@ -113,6 +113,18 @@ downgrade is justified by a cited source (Google/SF).
 These are the checks a best-in-class technical auditor has; ordered by impact.
 (3.1-3.4 work per-page now; 3.5-3.7 need whole-crawl context → align with M2/M3.)
 
+> **Status (shipped):** the self-contained, per-page parts are DONE —
+> ✅ noindex+disallow conflict, ✅ noindex+cross-canonical contradiction,
+> ✅ redirect chains **and loops** (single http→https 301 correctly not flagged),
+> ✅ hreflang validity (invalid codes, non-absolute URLs, hreflang/canonical
+> conflict; missing x-default → Notice), ✅ structured-data required-vs-recommended
+> (+ `@graph` detection fix), ✅ Core Web Vitals **field/CrUX** data (LCP/INP/CLS at
+> p75; INP not FID) returned by the backend.
+> **Deferred to M2/M3 (need the whole-crawl graph or a network fetch of other
+> URLs):** canonical/hreflang **target status** (→404/redirect/noindex), hreflang
+> **reciprocity**, orphan pages, crawl depth, Link Score, sitemap↔index alignment.
+> **Follow-up (UI):** surface the new field-CWV data in the Performance view.
+
 1. **Canonical integrity** — flag canonical → redirect / 4xx / 5xx / `noindex` /
    robots-blocked URL, and **canonical + noindex on the same page** (contradiction).
    Replaces the naive "different URL" check.

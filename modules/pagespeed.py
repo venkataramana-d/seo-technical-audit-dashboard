@@ -4,6 +4,22 @@ Google PageSpeed Insights API v5 client.
 Returns real Lighthouse scores and CWV values.
 No API key required for anonymous usage (100 req/day per IP).
 Provide an API key for higher quotas (25 000 req/day).
+
+FIELD vs LAB data
+-----------------
+The PSI response carries two very different classes of Core Web Vitals:
+
+* FIELD data (CrUX) lives under the top-level ``loadingExperience`` /
+  ``originLoadingExperience`` keys. It is what *real users* experienced over
+  the trailing 28 days, reported at the 75th percentile (p75). THIS is the
+  ranking-relevant signal: Google ranks on field CWV, not lab scores.
+* LAB data (Lighthouse) lives under ``lighthouseResult.audits``. It is a
+  single synthetic run in a controlled environment. It is diagnostic only
+  (great for finding *why* something is slow) and is NOT used for ranking.
+
+Also note: FID (First Input Delay) is deprecated and was replaced by INP
+(Interaction to Next Paint) as a Core Web Vital in March 2024. We surface INP
+from both field and lab data and do not report FID.
 """
 
 import requests
@@ -32,6 +48,96 @@ def _extract_metric(audits, key):
         "score":        a.get("score"),
         "status":       _score_to_status(a.get("score")),
     }
+
+
+# CrUX (field) "good" thresholds, measured at p75 (the value Google uses).
+# Each entry: (good_max, poor_min). "good" if value <= good_max, "poor" if
+# value > poor_min, otherwise "needs-improvement".
+_FIELD_THRESHOLDS = {
+    "lcp":  (2500.0, 4000.0),   # ms
+    "inp":  (200.0,  500.0),    # ms  (replaced FID as a Core Web Vital, Mar 2024)
+    "cls":  (0.10,   0.25),     # unitless (0-1 scale)
+    "fcp":  (1800.0, 3000.0),   # ms
+    "ttfb": (800.0,  1800.0),   # ms
+}
+
+# CrUX metric key -> our short name.
+_FIELD_KEY_MAP = {
+    "LARGEST_CONTENTFUL_PAINT_MS":     "lcp",
+    "INTERACTION_TO_NEXT_PAINT":       "inp",
+    "CUMULATIVE_LAYOUT_SHIFT_SCORE":   "cls",
+    "FIRST_CONTENTFUL_PAINT_MS":       "fcp",
+    "EXPERIMENTAL_TIME_TO_FIRST_BYTE": "ttfb",
+    "TIME_TO_FIRST_BYTE":              "ttfb",
+}
+
+
+def _normalise_cls(percentile):
+    """
+    CrUX returns CLS as an integer percentile scaled *100 in some responses
+    (e.g. 5 meaning 0.05), while CLS is conceptually a 0-1 score. Normalise so
+    the returned value is always on the 0-1 scale.
+
+    A raw percentile > 1 is treated as the *100 integer form and divided by 100;
+    a value already <= 1 is assumed to be the real score and left untouched.
+    """
+    if percentile is None:
+        return None
+    try:
+        p = float(percentile)
+    except (TypeError, ValueError):
+        return None
+    return p / 100.0 if p > 1 else p
+
+
+def _rate_field(short_name, value):
+    """Judge a field metric value against the p75 'good' thresholds."""
+    thresholds = _FIELD_THRESHOLDS.get(short_name)
+    if thresholds is None or value is None:
+        return "info"
+    good_max, poor_min = thresholds
+    if value <= good_max:
+        return "good"
+    if value > poor_min:
+        return "poor"
+    return "needs-improvement"
+
+
+def _parse_field_metrics(loading_experience):
+    """
+    Build the CrUX (field / real-user) metrics object from a PSI
+    ``loadingExperience`` (or ``originLoadingExperience``) block.
+
+    Returns a dict of {short_name: {percentile, category, status}} for every
+    recognised metric present, or {} if nothing usable is found. Fully
+    defensive: never raises on a malformed / partial block.
+    """
+    out = {}
+    try:
+        metrics = (loading_experience or {}).get("metrics", {}) or {}
+    except AttributeError:
+        return out
+
+    for crux_key, short_name in _FIELD_KEY_MAP.items():
+        try:
+            m = metrics.get(crux_key)
+            if not isinstance(m, dict):
+                continue
+            percentile = m.get("percentile")
+            if short_name == "cls":
+                percentile = _normalise_cls(percentile)
+            # CrUX category: "FAST" / "AVERAGE" / "SLOW"
+            # (i.e. good / needs-improvement / poor).
+            category = m.get("category")
+            out[short_name] = {
+                "percentile": percentile,
+                "category":   category,
+                "status":     _rate_field(short_name, percentile),
+            }
+        except Exception:
+            # A single malformed metric must not lose the others.
+            continue
+    return out
 
 
 def fetch_pagespeed(url, strategy="mobile", api_key=None):
@@ -116,6 +222,37 @@ def fetch_pagespeed(url, strategy="mobile", api_key=None):
     if not inp.get("value") or inp["value"] == "N/A":
         inp = {"value": "Not available", "numericValue": None, "score": None, "status": "info"}
 
+    # ---- FIELD (CrUX / real-user) data --------------------------------------
+    # This is the ranking-relevant signal. Prefer page-level data
+    # (loadingExperience); fall back to origin-level (originLoadingExperience)
+    # when the specific URL has too little traffic for its own CrUX record.
+    # Common on low-traffic pages: no CrUX data at all -> field stays None and
+    # the lab path above is completely unaffected.
+    field = None
+    field_overall = None
+    field_scope = None
+    try:
+        page_le   = data.get("loadingExperience", {}) or {}
+        origin_le = data.get("originLoadingExperience", {}) or {}
+
+        page_metrics = _parse_field_metrics(page_le)
+        if page_metrics:
+            field         = page_metrics
+            field_overall = page_le.get("overall_category")
+            field_scope   = "page"
+        else:
+            origin_metrics = _parse_field_metrics(origin_le)
+            if origin_metrics:
+                field         = origin_metrics
+                field_overall = origin_le.get("overall_category")
+                field_scope   = "origin"   # origin-level fallback
+        if field is not None:
+            field["scope"] = field_scope   # "page" or "origin" fallback
+    except Exception:
+        # Never let a field-parsing problem break the lab response.
+        field = None
+        field_overall = None
+
     # Opportunities (audits that could save time/bytes)
     opps = []
     for aid, a in audits.items():
@@ -167,6 +304,8 @@ def fetch_pagespeed(url, strategy="mobile", api_key=None):
         "si":   si,
         "ttfb": ttfb,
         "inp":  inp,
+        "field":          field,          # CrUX real-user CWV (ranking signal) or None
+        "field_overall":  field_overall,  # CrUX overall_category: FAST/AVERAGE/SLOW or None
         "opportunities":  opps[:10],
         "image_sizes":    image_sizes,
     }

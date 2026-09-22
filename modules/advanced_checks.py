@@ -6,6 +6,52 @@ import re
 from urllib.parse import urlparse
 
 
+# ── Hreflang validation helpers (Phase 3) ────────────────────────────────────
+# A valid hreflang value is a 2-3 letter ISO-639 language, optionally followed by
+# a script subtag (4 letters, accepted leniently) and/or a 2-letter ISO-3166
+# region. Examples that PASS: "en", "en-GB", "zh-Hant", "zh-Hant-HK".
+_HREFLANG_RE = re.compile(r"^[a-z]{2,3}(-[a-z]{4})?(-[a-z]{2})?$", re.I)
+# The format regex alone accepts "en-UK" because "UK" is a well-formed 2-letter
+# token - but "UK" is NOT a valid ISO-3166 region (the code for Great Britain is
+# "GB"). These are the common non-ISO region mistakes we flag explicitly so the
+# canonical "en-UK should be en-GB" error is caught.
+_HREFLANG_BAD_REGIONS = {"uk", "eu"}
+
+
+def _hreflang_lang_is_valid(lang: str) -> bool:
+    """True if `lang` is a well-formed hreflang value (x-default handled by caller)."""
+    if not lang:
+        return False
+    if not _HREFLANG_RE.match(lang):
+        return False
+    parts = lang.split("-")
+    # If a region subtag is present, reject the common non-ISO mistakes.
+    if len(parts) >= 2 and parts[-1].lower() in _HREFLANG_BAD_REGIONS:
+        return False
+    return True
+
+
+def _norm_url_for_compare(u: str) -> str:
+    """Normalise a URL for a lenient same-page comparison (scheme/host/path only,
+    trailing slash and fragment stripped, host lowercased)."""
+    try:
+        p = urlparse((u or "").strip())
+        netloc = p.netloc.lower()
+        path = p.path.rstrip("/")
+        return f"{netloc}{path}"
+    except Exception:
+        return (u or "").strip()
+
+
+# ── Structured-data required/recommended property map (Phase 3) ───────────────
+# Google Rich Results required + recommended properties for common types only.
+# Unknown @type values are skipped. "AND"/"OR" groups are handled in code below.
+_SCHEMA_KNOWN_TYPES = {
+    "Article", "NewsArticle", "BlogPosting", "Product", "BreadcrumbList",
+    "FAQPage", "Organization", "Event", "Recipe",
+}
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # HTTP Headers Analysis
 # ════════════════════════════════════════════════════════════════════════════
@@ -555,8 +601,8 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
         issues.append({
             "issue": "Hreflang Missing x-default Tag",
             "category": "International SEO",
-            "severity": "Warning",
-            "recommendation": 'Add <link rel="alternate" hreflang="x-default" href="..."> as a fallback for unmatched languages.',
+            "severity": "Notice",
+            "recommendation": 'Advisory: add <link rel="alternate" hreflang="x-default" href="..."> as a fallback for unmatched languages. Recommended, not required.',
             "impact_score": 5,
             "effort": "Low",
             "affected": [{
@@ -564,6 +610,67 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
                 "detail": "not present; defined hreflang values: " + ", ".join(
                     h["lang"] for h in hreflang_list if h["lang"]
                 ),
+            }],
+        })
+
+    # ── 4b. Hreflang validity checks (Phase 3, self-contained) ────────────────
+    # A1. Invalid language code(s)
+    bad_hreflang_langs = [
+        {"value": h["lang"], "detail": h["url"]}
+        for h in hreflang_list
+        if h["lang"] and h["lang"].lower() != "x-default"
+        and not _hreflang_lang_is_valid(h["lang"])
+    ]
+    if bad_hreflang_langs:
+        issues.append({
+            "issue": f"Invalid hreflang Language Code(s) ({len(bad_hreflang_langs)})",
+            "category": "International SEO",
+            "severity": "Warning",
+            "recommendation": 'Use a valid ISO 639-1 language code, optionally with an ISO 3166-1 Alpha-2 region (e.g. "en-GB", not "en-UK"). Invalid codes are ignored by Google, breaking the hreflang set.',
+            "impact_score": 6,
+            "effort": "Low",
+            "affected": bad_hreflang_langs[:50],
+        })
+
+    # A2. Non-absolute hreflang URL(s)
+    non_absolute_hreflang = [
+        {"value": h["url"], "detail": h["lang"]}
+        for h in hreflang_list
+        if h["url"] and not h["url"].lower().startswith(("http://", "https://"))
+    ]
+    if non_absolute_hreflang:
+        issues.append({
+            "issue": f"hreflang URL(s) Not Absolute ({len(non_absolute_hreflang)})",
+            "category": "International SEO",
+            "severity": "Warning",
+            "recommendation": "hreflang href values must be fully-qualified absolute URLs (starting with http:// or https://). Relative or protocol-relative URLs are not honoured by search engines.",
+            "impact_score": 6,
+            "effort": "Low",
+            "affected": non_absolute_hreflang[:50],
+        })
+
+    # A3. hreflang / canonical conflict
+    # Each language version should self-canonicalise. If this page carries
+    # hreflang tags but its canonical points at a DIFFERENT URL, the canonical
+    # silently nullifies the whole hreflang set.
+    canonical_tag = soup.find("link", rel="canonical") if soup else None
+    canonical_url = (canonical_tag.get("href", "").strip() if canonical_tag else "")
+    if (
+        hreflang_list
+        and canonical_url
+        and canonical_url.lower().startswith(("http://", "https://"))
+        and _norm_url_for_compare(canonical_url) != _norm_url_for_compare(url or "")
+    ):
+        issues.append({
+            "issue": "hreflang Conflicts With Canonical",
+            "category": "International SEO",
+            "severity": "Warning",
+            "recommendation": "This page has hreflang tags but its canonical points to a different URL. Each language version must canonicalise to itself, otherwise the hreflang cluster is ignored. Point the canonical at this page's own URL.",
+            "impact_score": 7,
+            "effort": "Medium",
+            "affected": [{
+                "value": canonical_url,
+                "detail": "canonical points away from this language version",
             }],
         })
 
@@ -616,11 +723,20 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
             for item in items:
                 if not isinstance(item, dict):
                     continue
-                stype = item.get("@type", "")
-                if isinstance(stype, list):
-                    schema_types_found.extend(stype)
-                elif stype:
-                    schema_types_found.append(str(stype))
+                # A @graph wrapper has no top-level @type; its real objects live
+                # inside the array. Collect types from the wrapper AND its @graph
+                # members so a @graph-only document isn't misreported as having
+                # "No Structured Data Found".
+                type_sources = [item]
+                graph = item.get("@graph")
+                if isinstance(graph, list):
+                    type_sources.extend(g for g in graph if isinstance(g, dict))
+                for src in type_sources:
+                    stype = src.get("@type", "")
+                    if isinstance(stype, list):
+                        schema_types_found.extend(stype)
+                    elif stype:
+                        schema_types_found.append(str(stype))
                 schema_raw.append(item)
         except json.JSONDecodeError as e:
             schema_errors.append(str(e))
@@ -664,6 +780,113 @@ def analyze_advanced(soup, url, http_headers=None, page_size_bytes=0, response_t
                     "detail": "not present; detected schema types: " + ", ".join(schema_types_found),
                 }],
             })
+
+    # ── 6b. Structured-data required-vs-recommended validation (Phase 3) ──────
+    # Validate REQUIRED and RECOMMENDED properties (Google Rich Results) for the
+    # common types only. Fully defensive: any malformation is skipped, never
+    # raised. Does NOT re-flag the parse errors handled above.
+    schema_missing_required = []
+    schema_missing_recommended = []
+    try:
+        # Flatten schema objects, expanding nested @graph arrays the base parser
+        # keeps as a single wrapper dict.
+        schema_objects = []
+        for obj in schema_raw:
+            if not isinstance(obj, dict):
+                continue
+            graph = obj.get("@graph")
+            if isinstance(graph, list):
+                schema_objects.extend(g for g in graph if isinstance(g, dict))
+            else:
+                schema_objects.append(obj)
+
+        def _sd_has(item, prop):
+            v = item.get(prop)
+            return v not in (None, "", [], {})
+
+        def _sd_has_any(item, props):
+            return any(_sd_has(item, p) for p in props)
+
+        def _sd_missing(t, item):
+            """Return (missing_required, missing_recommended) for one @type."""
+            req, rec = [], []
+            if t in ("Article", "NewsArticle", "BlogPosting"):
+                if not _sd_has(item, "headline"):
+                    req.append("headline")
+                rec += [p for p in ("image", "datePublished", "author") if not _sd_has(item, p)]
+            elif t == "Product":
+                if not _sd_has(item, "name"):
+                    req.append("name")
+                if not _sd_has_any(item, ("offers", "review", "aggregateRating")):
+                    req.append("offers/review/aggregateRating")
+                rec += [p for p in ("image", "description") if not _sd_has(item, p)]
+            elif t == "BreadcrumbList":
+                if not _sd_has(item, "itemListElement"):
+                    req.append("itemListElement")
+            elif t == "FAQPage":
+                if not _sd_has(item, "mainEntity"):
+                    req.append("mainEntity")
+            elif t == "Organization":
+                if not _sd_has(item, "name"):
+                    req.append("name")
+                rec += [p for p in ("logo", "url") if not _sd_has(item, p)]
+            elif t == "Event":
+                req += [p for p in ("name", "startDate", "location") if not _sd_has(item, p)]
+            elif t == "Recipe":
+                if not _sd_has(item, "name"):
+                    req.append("name")
+                if not _sd_has(item, "image"):
+                    req.append("image")
+                if not _sd_has_any(item, ("recipeIngredient", "ingredients")):
+                    req.append("recipeIngredient")
+            return req, rec
+
+        for item in schema_objects:
+            try:
+                stype = item.get("@type", "")
+                types = stype if isinstance(stype, list) else [stype]
+                for t in types:
+                    t = str(t)
+                    if t not in _SCHEMA_KNOWN_TYPES:
+                        continue
+                    req, rec = _sd_missing(t, item)
+                    for p in req:
+                        schema_missing_required.append({
+                            "value": f"{t}.{p}",
+                            "detail": "required - item not eligible for rich results",
+                        })
+                    for p in rec:
+                        schema_missing_recommended.append({
+                            "value": f"{t}.{p}",
+                            "detail": "recommended",
+                        })
+            except Exception:
+                continue
+    except Exception:
+        schema_missing_required = []
+        schema_missing_recommended = []
+
+    if schema_missing_required:
+        issues.append({
+            "issue": f"Structured Data Missing Required Property(ies) ({len(schema_missing_required)})",
+            "category": "Structured Data",
+            "severity": "Warning",
+            "recommendation": "Add the missing required properties. Without them, Google will not render the affected items as rich results. Validate with the Rich Results Test.",
+            "impact_score": 6,
+            "effort": "Medium",
+            "affected": schema_missing_required[:50],
+        })
+
+    if schema_missing_recommended:
+        issues.append({
+            "issue": f"Structured Data Missing Recommended Property(ies) ({len(schema_missing_recommended)})",
+            "category": "Structured Data",
+            "severity": "Notice",
+            "recommendation": "Advisory: adding these recommended properties improves rich-result eligibility and appearance, but they are not strictly required.",
+            "impact_score": 3,
+            "effort": "Medium",
+            "affected": schema_missing_recommended[:50],
+        })
 
     # ── 7. Favicon ────────────────────────────────────────────────────────
     favicon = soup.find("link", rel=lambda r: r and (

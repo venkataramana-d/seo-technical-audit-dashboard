@@ -440,6 +440,56 @@ def analyze_indexability(soup, http_headers=None):
     }
 
 
+def analyze_indexability_conflicts(result):
+    """Cross-signal indexing conflicts - the silent, high-impact bugs Google's
+    own docs warn about. These need more than one section of the audit, so they
+    run after metadata/canonical/indexability/site_health are all computed.
+    Returns a list of issue dicts (appended to the indexability section).
+    """
+    issues = []
+    indexability = result.get("indexability", {}) or {}
+    canonical = result.get("canonical", {}) or {}
+    site_health = result.get("site_health", {}) or {}
+
+    # "noindex active" = meta robots or X-Robots-Tag set it (is_indexable False).
+    noindex = indexability.get("is_indexable") is False
+    if not noindex:
+        return issues
+
+    # 1. noindex + robots.txt disallow: Google can't crawl the page, so it never
+    #    SEES the noindex -> the page can still appear in results (URL-only). The
+    #    correct way to deindex is allow crawl + noindex. This is the single most
+    #    consequential silent indexing bug.
+    disallowed = any(
+        "blocked by robots.txt" in (i.get("issue", "").lower())
+        for i in site_health.get("issues", [])
+    )
+    if disallowed:
+        issues.append(_issue(
+            "Noindex Conflicts With robots.txt Disallow", "Indexability", "Critical",
+            "This page is both noindex AND blocked by robots.txt. Because Google cannot crawl "
+            "a disallowed URL, it never sees the noindex and the page can still be indexed "
+            "(URL-only). To deindex: allow crawling in robots.txt and keep the noindex.",
+            impact_score=10, effort="Low",
+            affected=[{"value": result.get("final_url") or result.get("url", ""),
+                       "detail": "noindex + robots.txt disallow"}]))
+
+    # 2. noindex + canonical pointing to a DIFFERENT URL: contradictory signals.
+    #    noindex says "drop this page"; canonical says "consolidate into that one".
+    #    Google may honour either, so the outcome is unpredictable.
+    canonical_url = canonical.get("canonical_url")
+    if canonical_url and canonical.get("is_self_ref") is False:
+        issues.append(_issue(
+            "Noindex Combined With a Cross-URL Canonical", "Indexability", "Warning",
+            "This page is noindex but also canonicalises to a different URL - contradictory "
+            "signals (noindex = drop it; canonical = consolidate it). Keep only the signal you "
+            "intend: use noindex to deindex, or a self-referencing canonical to keep and consolidate.",
+            impact_score=6, effort="Low",
+            affected=[{"value": canonical_url, "detail": "canonical target while page is noindex"}]))
+
+    return issues
+
+
 def analyze_url_structure(url, response_time=0.0, final_url=None):
     """`url` drives the structural checks (length/case/query params) since
     those are properties of the URL as discovered/linked and worth fixing at
@@ -586,9 +636,43 @@ def analyze_images(soup):
 
 
 def analyze_redirect_chain(redirect_history):
-    """Analyse redirect chain for multiple hops."""
+    """Analyse the redirect chain for loops and multi-hop chains.
+
+    A single hop (e.g. the correct http->https or non-www->www 301) is expected
+    and is NOT flagged - only genuine multi-hop chains and loops are problems.
+    """
     issues = []
-    if len(redirect_history) > 1:
+
+    # ── Redirect loop: the same address recurs in the chain ──
+    # Scheme IS part of the key: a standard http->https upgrade
+    # (http://x/a -> https://x/a -> ...) is NOT a loop and must not be flagged.
+    # We only treat an EXACT repeat (same scheme+host+path, trailing slash
+    # ignored) as a loop, which is what a genuine A->B->A cycle produces.
+    def _norm(u):
+        try:
+            p = urlparse(u)
+            return (p.scheme.lower(), p.netloc.lower(), p.path.rstrip("/") or "/")
+        except Exception:
+            return (u,)
+
+    seen = set()
+    looped = None
+    for hop in redirect_history:
+        key = _norm(hop)
+        if key in seen:
+            looped = hop
+            break
+        seen.add(key)
+
+    if looped is not None:
+        issues.append(_issue(
+            "Redirect Loop Detected", "Redirects", "Critical",
+            "This URL redirects back into a loop, so it can never be reached or indexed. "
+            "Fix the redirect rules so the chain ends at a single final 200 URL.",
+            impact_score=9, effort="Medium",
+            affected=[{"value": hop, "detail": f"hop {n}"}
+                      for n, hop in enumerate(redirect_history[:50], start=1)]))
+    elif len(redirect_history) > 1:
         issues.append(_issue(
             f"Redirect Chain Detected ({len(redirect_history)} hops)",
             "Redirects", "Warning",
@@ -599,6 +683,7 @@ def analyze_redirect_chain(redirect_history):
     return {
         "chain_length": len(redirect_history),
         "chain": redirect_history,
+        "has_loop": looped is not None,
         "issues": issues,
     }
 
@@ -782,6 +867,13 @@ def audit_url(url, audit_type="auto", check_links=True, validate_links=False,
         result["final_url"], soup=soup, http_headers=http_headers, page_text=result.get("_soup_text", ""),
         prefetched_domain_health=prefetched_domain_health,
     )
+
+    # Cross-signal indexing conflicts (noindex+disallow, noindex+cross-canonical)
+    # need indexability, canonical and site_health together, so run them now and
+    # fold them into the indexability section that feeds all_issues.
+    conflict_issues = analyze_indexability_conflicts(result)
+    if conflict_issues:
+        result.setdefault("indexability", {}).setdefault("issues", []).extend(conflict_issues)
 
     if audit_type == "auto":
         result["audit_type"] = detect_page_type(url, soup)
