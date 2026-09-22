@@ -18,10 +18,11 @@ def _isolated_session_factory():
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 
-def _fake_crawl_site_success(config, on_result=None, progress_callback=None):
+def _fake_crawl_site_success(config, on_result=None, progress_callback=None, **kwargs):
     """Synthesizes a 2-page crawl and drives the same on_result callback the
     real crawl_site would, so persist_result is exercised exactly as it
-    would be in production."""
+    would be in production. `**kwargs` absorbs the resume/should_stop args the
+    worker now passes (M2 T2.3)."""
     outcomes = {
         "https://example.com/": {
             "page": {
@@ -96,7 +97,7 @@ def _fake_crawl_site_success(config, on_result=None, progress_callback=None):
     return {"pages": [o["page"] for o in outcomes.values()], "stats": {"pages_crawled": len(outcomes)}}
 
 
-def _fake_crawl_site_raises(config, on_result=None, progress_callback=None):
+def _fake_crawl_site_raises(config, on_result=None, progress_callback=None, **kwargs):
     raise RuntimeError("network exploded")
 
 
@@ -198,7 +199,7 @@ def test_handle_crawl_start_marks_crawl_failed_on_exception(monkeypatch, isolate
 
 
 def test_handle_crawl_start_persists_page_row_for_robots_skip_and_error(monkeypatch, isolated_db):
-    def fake_crawl_site(config, on_result=None, progress_callback=None):
+    def fake_crawl_site(config, on_result=None, progress_callback=None, **kwargs):
         on_result("https://example.com/private", {"skipped": "robots", "url": "https://example.com/private"})
         on_result("https://example.com/broken", {"error": "connection refused", "url": "https://example.com/broken"})
         return {"pages": [], "stats": {"pages_crawled": 0}}

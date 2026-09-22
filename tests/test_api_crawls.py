@@ -100,7 +100,7 @@ def _project_id_of(session_factory, crawl_id) -> int:
 def test_all_actions_registered():
     assert set(crawls._ACTIONS) == {
         "list", "create", "ingest", "finalize", "status", "thematic", "trend",
-        "pages", "issues", "links", "compare", "setSchedule",
+        "pages", "issues", "links", "compare", "setSchedule", "pause", "resume",
     }
 
 

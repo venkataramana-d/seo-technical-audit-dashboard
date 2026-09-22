@@ -318,6 +318,37 @@ def persist_result(crawl_id: int, url: str, outcome: dict) -> None:
         db.commit()
 
 
+def load_resume_state(crawl_id: int) -> tuple[list[str], list[str]]:
+    """Reconstruct a crawl's resume state from what's already persisted (M2 T2.3).
+
+    Because every crawled page is streamed to the DB as it completes, an
+    interrupted crawl can continue without re-crawling: the already-crawled pages
+    ARE the visited set, and the internal links discovered from them (minus the
+    visited ones) ARE the pending frontier. Returns (visited_urls, frontier_urls),
+    both normalized. An empty visited set means "nothing crawled yet - start
+    fresh".
+    """
+    with SessionLocal() as db:
+        visited = list(
+            db.execute(select(Page.normalized_url).where(Page.crawl_id == crawl_id))
+            .scalars()
+            .all()
+        )
+        visited_set = set(visited)
+        discovered = (
+            db.execute(
+                select(Link.target_url)
+                .join(Page, Link.page_id == Page.id)
+                .where(Page.crawl_id == crawl_id, Link.link_type == "internal")
+            )
+            .scalars()
+            .all()
+        )
+    # De-dup discovered internal targets and drop anything already crawled.
+    frontier = [u for u in dict.fromkeys(discovered) if u not in visited_set]
+    return visited, frontier
+
+
 def finalize_crawl(crawl_id: int, status: str) -> None:
     """Runs the Phase 2 post-crawl aggregation pass (only on success - a
     failed crawl's partial data isn't a meaningful basis for sitewide

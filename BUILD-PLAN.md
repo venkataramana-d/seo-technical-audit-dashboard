@@ -112,7 +112,11 @@ first).
 > migration `c4d5e6f7a8b9`). T2.1 code-ready: worker Dockerfile + `railway.toml`
 > + gated frontend flag `NEXT_PUBLIC_SERVER_CRAWL` shipped; user provisions the
 > Railway service per [DEPLOY-WORKER.md](DEPLOY-WORKER.md) (the engine/queue/
-> scheduler already existed). T2.3 resume/checkpoint still pending.
+> scheduler already existed). T2.3 DONE: crawl_site resume (pre-seeded
+> visited+frontier) + cooperative pause; worker reconstructs resume state from
+> persisted pages and leaves interrupted/paused crawls resumable (not failed);
+> pause/resume API + gated UI controls. (Migrating the client-side Path C results
+> onto the server store, and full login/org-scoping, remain future work.)
 - **T2.1** Run `worker/` crawls **server-side** on an always-on host (Railway
   rec.) → persist pages/links/findings to Neon; **live progress** (poll→SSE).
 - **T2.2** **Paginate/virtualize** the Results + report tables (fixes the

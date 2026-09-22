@@ -32,7 +32,7 @@ from worker.auth import AuthError  # noqa: E402
 from worker.queue import enqueue  # noqa: E402
 
 # Actions that operate on a specific crawl id - gated by per-org ownership.
-_CRAWL_SCOPED = {"status", "thematic", "trend", "compare", "setSchedule", "pages", "issues", "links", "ingest", "finalize"}
+_CRAWL_SCOPED = {"status", "thematic", "trend", "compare", "setSchedule", "pages", "issues", "links", "ingest", "finalize", "pause", "resume"}
 # Actions that resolve an org (list/create derive scope from the session too).
 _ORG_SCOPED = {"list", "create"} | _CRAWL_SCOPED
 from worker.site_audit import get_thematic_report  # noqa: E402
@@ -513,6 +513,55 @@ def _handle_links(handler, payload):
         send_json(handler, 500, {"error": "Internal error while listing links."})
 
 
+def _handle_pause(handler, payload):
+    """Request a running (or queued) crawl to stop cleanly and stay resumable
+    (M2 T2.3). The worker polls the crawl's status between depth batches and
+    stops when it sees `paused`; already-crawled pages are kept."""
+    try:
+        crawl_id = _parse_crawl_id(handler, payload)
+        if crawl_id is None:
+            return
+        with SessionLocal() as db:
+            crawl = db.get(Crawl, crawl_id)
+            if crawl is None:
+                send_json(handler, 404, {"error": f"No crawl with id {crawl_id}"})
+                return
+            if crawl.status not in ("queued", "running"):
+                send_json(handler, 400, {"error": f"Crawl is {crawl.status}, cannot pause."})
+                return
+            crawl.status = "paused"
+            db.commit()
+            send_json(handler, 200, {"crawlId": crawl_id, "status": "paused"})
+    except Exception:  # noqa: BLE001
+        logger.exception("crawls.py (pause) request failed")
+        send_json(handler, 500, {"error": "Internal error while pausing the crawl."})
+
+
+def _handle_resume(handler, payload):
+    """Resume a paused/failed crawl: re-queue it and enqueue crawl.start. The
+    worker's load_resume_state continues from the already-persisted pages, so it
+    does not re-crawl. Requires the always-on worker to be running (M2 T2.1)."""
+    try:
+        crawl_id = _parse_crawl_id(handler, payload)
+        if crawl_id is None:
+            return
+        with SessionLocal() as db:
+            crawl = db.get(Crawl, crawl_id)
+            if crawl is None:
+                send_json(handler, 404, {"error": f"No crawl with id {crawl_id}"})
+                return
+            if crawl.status not in ("paused", "failed"):
+                send_json(handler, 400, {"error": f"Crawl is {crawl.status}, cannot resume."})
+                return
+            crawl.status = "queued"
+            db.commit()
+        enqueue("crawl.start", {"crawl_id": crawl_id})
+        send_json(handler, 200, {"crawlId": crawl_id, "status": "queued"})
+    except Exception:  # noqa: BLE001
+        logger.exception("crawls.py (resume) request failed")
+        send_json(handler, 500, {"error": "Internal error while resuming the crawl."})
+
+
 _ACTIONS = {
     "list": _handle_list,
     "create": _handle_create,
@@ -526,6 +575,8 @@ _ACTIONS = {
     "links": _handle_links,
     "compare": _handle_compare,
     "setSchedule": _handle_set_schedule,
+    "pause": _handle_pause,
+    "resume": _handle_resume,
 }
 
 

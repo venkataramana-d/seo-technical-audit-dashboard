@@ -221,7 +221,8 @@ def _robots_allowed(url: str, user_agent: str, cache: dict, lock: threading.Lock
     return rp.can_fetch(ua_token, url), rp.crawl_delay(ua_token)
 
 
-def crawl_site(config: CrawlConfig, progress_callback=None, on_result=None) -> dict:
+def crawl_site(config: CrawlConfig, progress_callback=None, on_result=None,
+               resume_visited=None, resume_frontier=None, should_stop=None) -> dict:
     """Breadth-first crawl of `config.seed_url`'s domain: discover pages depth by
     depth, run the existing single-page audit engine on each accepted page, and
     return the aggregate result. `progress_callback(pages_done, max_pages)` is
@@ -229,7 +230,15 @@ def crawl_site(config: CrawlConfig, progress_callback=None, on_result=None) -> d
     invoked once per processed URL (success, robots-skip, or fetch-error alike)
     with the same `outcome` dict `_process()` produced - the hook a caller uses
     to persist each page as it's crawled instead of waiting for the final
-    in-memory return value (see worker/crawl_service.py)."""
+    in-memory return value (see worker/crawl_service.py).
+
+    Resume (M2 T2.3): pass `resume_visited` (normalized URLs already crawled) and
+    `resume_frontier` (discovered-but-not-yet-crawled URLs) to continue an
+    interrupted crawl instead of starting over - the already-crawled pages are
+    skipped and the crawl picks up from the pending frontier. `should_stop()` is
+    polled before each depth batch; when it returns True the crawl stops cleanly
+    and the result's stats are flagged `stopped=True` (a resumable pause, not a
+    failure)."""
     started = datetime.now()
 
     ok, ssrf_msg = validate_audit_url(config.seed_url)
@@ -242,13 +251,20 @@ def crawl_site(config: CrawlConfig, progress_callback=None, on_result=None) -> d
     seed_domain = get_base_domain(config.seed_url)
     headers = {**DEFAULT_HEADERS, "User-Agent": USER_AGENTS[config.user_agent]}
 
-    seeds = [normalize_url(u) for u in _get_seed_urls(config)]
+    # On resume, seed the frontier from the pending (discovered-but-not-crawled)
+    # URLs rather than the config seeds; otherwise use the normal seed list.
+    seed_source_urls = resume_frontier if resume_frontier is not None else _get_seed_urls(config)
+    seeds = [normalize_url(u) for u in seed_source_urls]
     frontier, skipped_scope = [], []
     for u in seeds:
         (frontier if _in_scope(u, seed_domain, config) else skipped_scope).append(u)
     frontier = list(dict.fromkeys(frontier))  # de-dup, keep discovery order
 
-    visited: set = set()
+    # Resume: treat already-crawled URLs as visited so they're skipped, and drop
+    # them from the (reconstructed) frontier.
+    visited: set = set(normalize_url(u) for u in (resume_visited or []))
+    if visited:
+        frontier = [u for u in frontier if u not in visited]
     pages: list = []
     skipped_robots: list = []
     errors: list = []
@@ -329,10 +345,17 @@ def crawl_site(config: CrawlConfig, progress_callback=None, on_result=None) -> d
         return {"page": page_record, "links": links}
 
     timed_out = False
+    stopped = False
     _crawl_start = time.monotonic()
     try:
         depth = 0
         while frontier and len(visited) < config.max_pages and depth <= config.max_depth:
+            # Cooperative pause (M2 T2.3): a caller can request a clean stop (e.g.
+            # the crawl was paused in the UI). We break between depth batches so
+            # in-flight pages still persist; the crawl is resumable.
+            if should_stop and should_stop():
+                stopped = True
+                break
             # Wall-clock guard: stop cleanly before overrunning the caller's
             # budget (e.g. Vercel's function timeout) rather than being killed
             # mid-request. Returns whatever was crawled so far, flagged.
@@ -402,6 +425,7 @@ def crawl_site(config: CrawlConfig, progress_callback=None, on_result=None) -> d
             "errors": len(errors),
             "depth_reached": depth,
             "timed_out": timed_out,
+            "stopped": stopped,
             "duration_seconds": round((finished - started).total_seconds(), 2),
             "issues_by_severity": dict(Counter(
                 issue["severity"]

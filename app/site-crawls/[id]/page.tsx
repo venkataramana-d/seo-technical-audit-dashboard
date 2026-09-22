@@ -159,6 +159,10 @@ interface TrendPoint {
   finished_at: string | null;
 }
 
+// Pause/Resume only make sense when a persistent worker drives the crawl
+// (M2 T2.1). In the default browser-orchestrated mode the tab does the crawling
+// and ignores DB status, so the controls would be misleading - hide them.
+const SERVER_CRAWL = process.env.NEXT_PUBLIC_SERVER_CRAWL === "1";
 const POLL_INTERVAL_MS = 3000;
 const FINISHED_STATUSES = new Set(["completed", "failed"]);
 const TABS = ["Overview", "Pages", "Issues", "Site-wide", "Links", "Compare"] as const;
@@ -1652,6 +1656,22 @@ function CrawlDetailInner() {
     }
   }
 
+  // Pause a running crawl (the worker stops cleanly between batches) or resume a
+  // paused/failed one (re-queued; the worker continues from persisted pages).
+  // Requires the always-on worker (M2 T2.1) to actually act on it.
+  const [pauseBusy, setPauseBusy] = useState(false);
+  async function pauseResume(action: "pause" | "resume") {
+    setPauseBusy(true);
+    try {
+      await postCrawlsAction({ action, crawlId });
+      await refetchStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to ${action} the crawl.`);
+    } finally {
+      setPauseBusy(false);
+    }
+  }
+
   if (!Number.isFinite(crawlId)) {
     return <p className="text-sm text-[var(--seo-error)]">Invalid crawl id.</p>;
   }
@@ -1663,13 +1683,35 @@ function CrawlDetailInner() {
         title={status?.rootUrl ?? `Crawl #${crawlId}`}
         subtitle={status ? `Status: ${status.status}` : "Loading…"}
         actions={
-          <button
-            type="button"
-            onClick={() => router.push("/site-crawls")}
-            className="rounded-lg border border-[var(--seo-border)] px-3 py-1.5 text-sm font-medium text-[var(--seo-text)] hover:bg-[var(--seo-card-hover)]"
-          >
-            ← All crawls
-          </button>
+          <div className="flex items-center gap-2">
+            {SERVER_CRAWL && status && (status.status === "running" || status.status === "queued") ? (
+              <button
+                type="button"
+                onClick={() => pauseResume("pause")}
+                disabled={pauseBusy}
+                className="rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 text-sm font-medium text-[var(--seo-text)] hover:bg-[var(--seo-card-hover)] disabled:opacity-50"
+              >
+                Pause
+              </button>
+            ) : null}
+            {SERVER_CRAWL && status && (status.status === "paused" || status.status === "failed") ? (
+              <button
+                type="button"
+                onClick={() => pauseResume("resume")}
+                disabled={pauseBusy}
+                className="rounded-lg btn-gradient px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Resume
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => router.push("/site-crawls")}
+              className="rounded-lg border border-[var(--seo-border)] px-3 py-1.5 text-sm font-medium text-[var(--seo-text)] hover:bg-[var(--seo-card-hover)]"
+            >
+              ← All crawls
+            </button>
+          </div>
         }
       />
 
@@ -1679,7 +1721,18 @@ function CrawlDetailInner() {
         <Card>
           <div className="text-sm font-semibold text-[var(--seo-error)]">This crawl failed.</div>
           <p className="mt-1 text-xs text-[var(--seo-muted)]">
-            Check the worker process logs (`python -m worker`) for the error.
+            {status.pagesCrawled > 0
+              ? `${status.pagesCrawled} page(s) were crawled before it stopped. Use Resume to continue from where it left off (requires the worker to be running).`
+              : "Check the worker process logs (`python -m worker`) for the error."}
+          </p>
+        </Card>
+      ) : status.status === "paused" ? (
+        <Card>
+          <div className="text-sm font-semibold text-[var(--seo-heading)]">
+            Paused - {status.pagesCrawled} page{status.pagesCrawled === 1 ? "" : "s"} crawled so far
+          </div>
+          <p className="mt-1 text-xs text-[var(--seo-muted)]">
+            Use Resume to continue from where it left off (already-crawled pages are kept).
           </p>
         </Card>
       ) : status.status !== "completed" ? (
