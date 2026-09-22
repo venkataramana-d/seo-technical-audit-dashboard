@@ -25,6 +25,7 @@ function pathnameOf(url: string): string {
 // sitewide audit can attach hundreds of offending elements to one issue; the
 // list only needs to be a scannable sample, so we cap and show "+N more".
 const FAILING_AFFECTED_CAP = 20;
+const RESULTS_PAGE_SIZE = 50;
 
 /**
  * One row in the sitewide "Top failing checks" list: the issue title + a
@@ -258,6 +259,9 @@ export default function ResultsPage() {
   const [h1ReportOpen, setH1ReportOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState("all");
   const [checklistFilter, setChecklistFilter] = useState<"all" | "has-fail" | "has-warning">("all");
+  // Paginate the table: a large audit (e.g. 2,423 URLs) rendered every row at
+  // once, which froze the page. Render one page at a time (matches the Explorer).
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     if (!navFilter) return;
@@ -295,6 +299,11 @@ export default function ResultsPage() {
   // "example.com › /section" tree) was removed in favor of a single flat table
   // with a Type column, per the requested design.
   const sortedRows = useMemo(() => sortRows(filtered, sortMode), [filtered, sortMode]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / RESULTS_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageStart = safePage * RESULTS_PAGE_SIZE;
+  const pageRows = sortedRows.slice(pageStart, pageStart + RESULTS_PAGE_SIZE);
 
   function openDetail(r: AuditResult) {
     setSelectedUrlIndex(results.indexOf(r));
@@ -455,7 +464,7 @@ export default function ResultsPage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(0); }}
               placeholder="Filter by path or domain…"
               className="w-full rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)] placeholder:text-[var(--seo-muted)]"
             />
@@ -469,7 +478,7 @@ export default function ResultsPage() {
               min={0}
               max={100}
               value={scoreMax}
-              onChange={(e) => setScoreMax(Number(e.target.value))}
+              onChange={(e) => { setScoreMax(Number(e.target.value)); setPage(0); }}
               className="w-48"
             />
           </div>
@@ -479,7 +488,7 @@ export default function ResultsPage() {
             </label>
             <select
               value={sortMode}
-              onChange={(e) => setSortMode(e.target.value as SortMode)}
+              onChange={(e) => { setSortMode(e.target.value as SortMode); setPage(0); }}
               className="rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
             >
               {SORT_OPTIONS.map((o) => (
@@ -494,7 +503,7 @@ export default function ResultsPage() {
               </label>
               <select
                 value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
+                onChange={(e) => { setTypeFilter(e.target.value); setPage(0); }}
                 className="rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
               >
                 <option value="all">All types</option>
@@ -510,7 +519,7 @@ export default function ResultsPage() {
             </label>
             <select
               value={checklistFilter}
-              onChange={(e) => setChecklistFilter(e.target.value as typeof checklistFilter)}
+              onChange={(e) => { setChecklistFilter(e.target.value as typeof checklistFilter); setPage(0); }}
               className="rounded-lg border border-[var(--seo-border)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
             >
               <option value="all">All checklist results</option>
@@ -522,7 +531,7 @@ export default function ResultsPage() {
             <input
               type="checkbox"
               checked={brokenOnly}
-              onChange={(e) => setBrokenOnly(e.target.checked)}
+              onChange={(e) => { setBrokenOnly(e.target.checked); setPage(0); }}
             />
             Broken links only
           </label>
@@ -551,13 +560,43 @@ export default function ResultsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedRows.map((r, idx) => (
-                    <ResultRow key={r.url + idx} r={r} onOpen={openDetail} />
+                  {pageRows.map((r, idx) => (
+                    <ResultRow key={r.url + (pageStart + idx)} r={r} onOpen={openDetail} />
                   ))}
                 </tbody>
               </table>
             </div>
           )}
+          {sortedRows.length > RESULTS_PAGE_SIZE ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--seo-border)] px-4 py-3 text-sm">
+              <span className="text-[var(--seo-muted)]">
+                Showing {(pageStart + 1).toLocaleString()}–
+                {Math.min(pageStart + RESULTS_PAGE_SIZE, sortedRows.length).toLocaleString()} of{" "}
+                {sortedRows.length.toLocaleString()}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={safePage <= 0}
+                  className="rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 font-medium text-[var(--seo-text)] disabled:opacity-40"
+                >
+                  ← Prev
+                </button>
+                <span className="text-[var(--seo-muted)]">
+                  Page {safePage + 1} of {totalPages.toLocaleString()}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={safePage >= totalPages - 1}
+                  className="rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 font-medium text-[var(--seo-text)] disabled:opacity-40"
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          ) : null}
         </Card>
       </div>
 

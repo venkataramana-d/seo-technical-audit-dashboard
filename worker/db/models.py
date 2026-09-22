@@ -168,7 +168,7 @@ class Page(Base):
     __tablename__ = "pages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    crawl_id: Mapped[int] = mapped_column(ForeignKey("crawls.id"), nullable=False)
+    crawl_id: Mapped[int] = mapped_column(ForeignKey("crawls.id"), nullable=False, index=True)
     url: Mapped[str] = mapped_column(String(2048), nullable=False)
     normalized_url: Mapped[str] = mapped_column(String(2048), nullable=False)
     status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -198,7 +198,7 @@ class Link(Base):
     __tablename__ = "links"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    page_id: Mapped[int] = mapped_column(ForeignKey("pages.id"), nullable=False)
+    page_id: Mapped[int] = mapped_column(ForeignKey("pages.id"), nullable=False, index=True)
     target_url: Mapped[str] = mapped_column(String(2048), nullable=False)
     link_type: Mapped[str] = mapped_column(String(50), nullable=False)  # internal|external|mailto|tel|anchor|js
     dom_location: Mapped[str | None] = mapped_column(String(50), nullable=True)  # nav|header|footer|sidebar|breadcrumb|body
@@ -215,8 +215,8 @@ class Issue(Base):
     __tablename__ = "issues"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    crawl_id: Mapped[int] = mapped_column(ForeignKey("crawls.id"), nullable=False)
-    page_id: Mapped[int | None] = mapped_column(ForeignKey("pages.id"), nullable=True)
+    crawl_id: Mapped[int] = mapped_column(ForeignKey("crawls.id"), nullable=False, index=True)
+    page_id: Mapped[int | None] = mapped_column(ForeignKey("pages.id"), nullable=True, index=True)
     issue_type: Mapped[str] = mapped_column(String(100), nullable=False)
     severity: Mapped[str] = mapped_column(String(20), nullable=False)  # error|warning|notice
     impact_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
