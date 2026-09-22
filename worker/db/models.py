@@ -193,6 +193,10 @@ class Page(Base):
     link_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     inlinks: Mapped[int | None] = mapped_column(Integer, nullable=True)
     outlinks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # M3 Tier B: compact MinHash signature of the page's content
+    # ({"minhash": [...], "shingle_count": n}) for fuzzy near-duplicate detection
+    # at scale without storing the full page text. See modules/near_duplicate.py.
+    content_signature_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     crawl: Mapped["Crawl"] = relationship(back_populates="pages")

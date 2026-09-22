@@ -242,28 +242,42 @@ def _handle_near_duplicates(handler, payload):
     if crawl_id is None:
         return
     try:
+        from modules.near_duplicate import near_duplicate_from_signatures
+
         with SessionLocal() as db:
-            data = _load_crawl_data(db, crawl_id)
-            if data is None:
+            crawl = db.get(Crawl, crawl_id)
+            if crawl is None:
                 send_json(handler, 404, {"error": "Crawl not found."})
                 return
-            _, _, site_pages, _, _ = data
-            # Fuzzy near-duplicate detection needs stored MinHash signatures,
-            # which the current serverless schema does not persist. Exact
-            # duplicates (by content_hash) are already reported by the sitewide
-            # "duplicate_content" check, so surface that as the honest fallback.
-            hashes = {}
-            for p in site_pages:
-                if p.content_hash:
-                    hashes.setdefault(p.content_hash, []).append(p.normalized_url)
+            rows = db.execute(
+                select(Page.normalized_url, Page.content_hash, Page.content_signature_json)
+                .where(Page.crawl_id == crawl_id)
+            ).all()
+
+            # Exact duplicates (content_hash) - always available.
+            hashes: dict[str, list[str]] = {}
+            for url, chash, _sig in rows:
+                if chash:
+                    hashes.setdefault(chash, []).append(url)
             exact_clusters = [urls for urls in hashes.values() if len(urls) > 1]
+
+            # Fuzzy near-duplicates from stored MinHash signatures (M3 Tier B).
+            signatures = {url: sig for url, _c, sig in rows if sig and sig.get("minhash")}
+            fuzzy_available = len(signatures) >= 2
+            near_dupe_issues = (
+                near_duplicate_from_signatures(signatures) if fuzzy_available else []
+            )
+
             send_json(handler, 200, {
                 "crawlId": crawl_id,
-                "fuzzyAvailable": False,
-                "reason": "Content signatures are not stored for this crawl; "
-                          "fuzzy near-duplicate matching needs them. Exact "
-                          "duplicates (by content hash) are shown instead.",
+                "fuzzyAvailable": fuzzy_available,
+                "reason": None if fuzzy_available else (
+                    "No stored content signatures for this crawl (crawled before "
+                    "signatures were captured); re-run the crawl to enable fuzzy "
+                    "matching. Exact duplicates by content hash are shown."),
                 "exactDuplicateClusters": exact_clusters,
+                "nearDuplicateClusters": [i.affected_urls for i in near_dupe_issues],
+                "issues": [_site_issue_dto(i) for i in near_dupe_issues],
             })
     except Exception:  # noqa: BLE001
         logger.exception("analyze.py near-duplicates failed for crawl %s", crawl_id)

@@ -213,6 +213,13 @@ interface LinkScoreResponse {
   lowestPages: LinkScoreRow[];
 }
 
+interface NearDupResponse {
+  fuzzyAvailable: boolean;
+  reason: string | null;
+  exactDuplicateClusters: string[][];
+  nearDuplicateClusters: string[][];
+}
+
 const SEVERITY_STYLE: Record<string, { color: string; bg: string }> = {
   error: { color: "var(--seo-error)", bg: "var(--seo-error-bg)" },
   warning: { color: "var(--seo-warning)", bg: "var(--seo-warning-bg)" },
@@ -1479,6 +1486,7 @@ function SitewideTab({ crawlId }: { crawlId: number }) {
   const [sitewide, setSitewide] = useState<SitewideResponse | null>(null);
   const [graph, setGraph] = useState<CrawlGraphResponse | null>(null);
   const [linkScore, setLinkScore] = useState<LinkScoreResponse | null>(null);
+  const [nearDup, setNearDup] = useState<NearDupResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -1490,9 +1498,10 @@ function SitewideTab({ crawlId }: { crawlId: number }) {
       postAnalyzeAction<SitewideResponse>("sitewide", crawlId),
       postAnalyzeAction<CrawlGraphResponse>("crawl-graph", crawlId),
       postAnalyzeAction<LinkScoreResponse>("link-score", crawlId),
+      postAnalyzeAction<NearDupResponse>("near-duplicates", crawlId),
     ])
-      .then(([sw, g, ls]) => {
-        if (!cancelled) { setSitewide(sw); setGraph(g); setLinkScore(ls); }
+      .then(([sw, g, ls, nd]) => {
+        if (!cancelled) { setSitewide(sw); setGraph(g); setLinkScore(ls); setNearDup(nd); }
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to run analysis.");
@@ -1602,6 +1611,45 @@ function SitewideTab({ crawlId }: { crawlId: number }) {
           </div>
         </Card>
       ) : null}
+
+      {nearDup ? (
+        <Card>
+          <h3 className="mb-1 text-sm font-semibold text-[var(--seo-heading)]">Near-duplicate content</h3>
+          <p className="mb-3 text-xs text-[var(--seo-muted)]">
+            Pages that are ≥90% similar (MinHash/shingling) compete with each other and dilute ranking
+            signals - consolidate them or add unique content.
+            {nearDup.fuzzyAvailable ? "" : ` ${nearDup.reason ?? ""}`}
+          </p>
+          {nearDup.nearDuplicateClusters.length === 0 && nearDup.exactDuplicateClusters.length === 0 ? (
+            <p className="text-xs text-[var(--seo-muted)]">No duplicate or near-duplicate clusters found.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {nearDup.nearDuplicateClusters.map((cluster, i) => (
+                <DupCluster key={`near-${i}`} label="Near-duplicate" urls={cluster} tint="var(--seo-warning)" />
+              ))}
+              {nearDup.exactDuplicateClusters.map((cluster, i) => (
+                <DupCluster key={`exact-${i}`} label="Exact duplicate" urls={cluster} tint="var(--seo-error)" />
+              ))}
+            </div>
+          )}
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function DupCluster({ label, urls, tint }: { label: string; urls: string[]; tint: string }) {
+  return (
+    <div className="rounded-lg border border-[var(--seo-border)] p-2">
+      <div className="mb-1 text-xs font-semibold" style={{ color: tint }}>
+        {label} - {urls.length} pages
+      </div>
+      <ul className="flex flex-col gap-0.5">
+        {urls.slice(0, 8).map((u) => (
+          <li key={u} className="truncate font-mono text-xs text-[var(--seo-text-light)]" title={u}>{u}</li>
+        ))}
+        {urls.length > 8 ? <li className="text-xs text-[var(--seo-muted)]">+{urls.length - 8} more</li> : null}
+      </ul>
     </div>
   );
 }

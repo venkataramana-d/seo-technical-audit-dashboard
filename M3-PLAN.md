@@ -30,8 +30,11 @@ crawl-to-crawl **compare**. `modules/near_duplicate.py` (MinHash/LSH) and
    `d5e6f7a8b9c0`); computed in `finalize_crawl`; sortable **Link Score column +
    In/Out** in the Pages grid. Requires `alembic upgrade head` on Neon.
 5. Persist per-crawl thematic scores (theme-level trend lines).
-6. Near-duplicate at scale: `Page.content_signature_json`, switch
-   `_handle_near_duplicates` to `near_duplicate_from_signatures`.
+6. ✅ **DONE** — Near-duplicate at scale: `Page.content_signature_json`
+   (migration `e6f7a8b9c0d1`) populated in `persist_result`;
+   `_handle_near_duplicates` now clusters from stored MinHash signatures
+   (fuzzy ≥90%) + a Near-duplicate card in the Site-wide tab. Requires
+   `alembic upgrade head` on Neon.
 
 ### Tier C — needs crawler changes / new engine
 7. Per-page crawl depth captured at crawl time (`Page.depth`) — today depth is

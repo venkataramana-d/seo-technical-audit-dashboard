@@ -232,6 +232,19 @@ def persist_result(crawl_id: int, url: str, outcome: dict) -> None:
             content_text = content.get("text")
             content_hash = hashlib.md5(content_text.encode("utf-8")).hexdigest() if content_text else None
 
+            # Compact MinHash signature for fuzzy near-duplicate detection at
+            # scale (M3 Tier B) - stored instead of the full text. Best-effort.
+            content_signature = None
+            if content_text:
+                try:
+                    from modules.near_duplicate import content_signature as _sig
+                    sig = _sig(content_text)
+                    if sig.shingle_count > 0:
+                        content_signature = {"minhash": list(sig.minhash),
+                                             "shingle_count": sig.shingle_count}
+                except Exception:  # noqa: BLE001
+                    content_signature = None
+
             page = Page(
                 crawl_id=crawl_id,
                 url=page_data["url"],
@@ -251,6 +264,7 @@ def persist_result(crawl_id: int, url: str, outcome: dict) -> None:
                 is_indexable=indexability.get("is_indexable"),
                 hreflang_json=advanced.get("hreflang_tags") or [],
                 schema_types_json=advanced.get("schema_types") or [],
+                content_signature_json=content_signature,
             )
             db.add(page)
             db.flush()  # need page.id for the Link/Issue rows below
