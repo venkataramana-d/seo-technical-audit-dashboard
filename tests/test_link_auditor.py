@@ -55,6 +55,26 @@ def test_new_tab_with_rel_is_not_flagged():
     assert noopener == []
 
 
+def test_opens_new_tab_covers_blank_named_and_whitespace_targets():
+    """A new tab/window is opened by target="_blank" OR any named target (e.g.
+    target="podcasts"); only "", _self, _parent, _top stay in the current tab.
+    Regression: named targets were previously reported as same-tab."""
+    from modules.link_auditor import parse_link_tag
+
+    def _opens(html):
+        a = BeautifulSoup(html, "lxml").find("a")
+        return parse_link_tag(a, "https://example.com/")["opens_new_tab"]
+
+    assert _opens('<a href="/a" target="_blank">x</a>') is True
+    assert _opens('<a href="/a" target="_BLANK">x</a>') is True
+    assert _opens('<a href="/a" target=" _blank ">x</a>') is True   # whitespace tolerated
+    assert _opens('<a href="/a" target="podcasts">x</a>') is True   # named target = new context
+    assert _opens('<a href="/a" target="_self">x</a>') is False
+    assert _opens('<a href="/a" target="_parent">x</a>') is False
+    assert _opens('<a href="/a" target="_top">x</a>') is False
+    assert _opens('<a href="/a">x</a>') is False
+
+
 def test_ugc_link_is_not_counted_as_dofollow():
     """Phase 2 bug fix: rel='ugc' is a ranking-suppressing qualifier, so a ugc
     link must NOT be classified as dofollow (it previously inflated the dofollow

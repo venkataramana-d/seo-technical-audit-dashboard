@@ -287,7 +287,7 @@ def parse_link_tag(tag, base_url):
         rel_attr = rel_attr.split()
     rel = [r.lower() for r in rel_attr]
 
-    target     = tag.get("target", "").lower()
+    target     = tag.get("target", "").strip().lower()
     title_attr = tag.get("title", "").strip()
     anchor_raw = tag.get_text(strip=True)
     has_img    = bool(tag.find("img"))
@@ -324,7 +324,11 @@ def parse_link_tag(tag, base_url):
         "is_sponsored":     is_sponsored,
         "is_ugc":           is_ugc,
         "is_dofollow":      is_dofollow,
-        "opens_new_tab":    target == "_blank",
+        # A new browsing context (tab/window) is opened by target="_blank" OR any
+        # NAMED target (e.g. target="podcasts"). Only "", _self, _parent and _top
+        # stay in the current tab. The old check matched literal "_blank" only, so
+        # named-target links that DO open a new tab were reported as same-tab.
+        "opens_new_tab":    bool(target) and target not in ("_self", "_parent", "_top"),
         "has_noopener":     "noopener"   in rel,
         "has_noreferrer":   "noreferrer" in rel,
         "missing_target":   target == "",
