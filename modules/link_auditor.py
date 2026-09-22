@@ -303,7 +303,11 @@ def parse_link_tag(tag, base_url):
     is_nofollow  = "nofollow"  in rel
     is_sponsored = "sponsored" in rel
     is_ugc       = "ugc"       in rel
-    is_dofollow  = not (is_nofollow or is_sponsored)
+    # A link is "dofollow" only when it carries NO ranking-suppressing qualifier.
+    # ugc (user-generated content) is such a qualifier - Google treats it as a
+    # hint not to pass full ranking credit - so it must be excluded here too;
+    # otherwise ugc links inflate the dofollow count and get miscategorised.
+    is_dofollow  = not (is_nofollow or is_sponsored or is_ugc)
 
     return {
         "url":              full_url,

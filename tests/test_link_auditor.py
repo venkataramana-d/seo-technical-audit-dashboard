@@ -55,6 +55,33 @@ def test_new_tab_with_rel_is_not_flagged():
     assert noopener == []
 
 
+def test_ugc_link_is_not_counted_as_dofollow():
+    """Phase 2 bug fix: rel='ugc' is a ranking-suppressing qualifier, so a ugc
+    link must NOT be classified as dofollow (it previously inflated the dofollow
+    count and could be miscategorised)."""
+    from modules.link_auditor import parse_link_tag
+
+    soup = BeautifulSoup(
+        '<a href="https://forum.example.com/post" rel="ugc">a comment link</a>',
+        "lxml",
+    )
+    data = parse_link_tag(soup.find("a"), "https://example.com/")
+    assert data["is_ugc"] is True
+    assert data["is_dofollow"] is False
+
+
+def test_nofollow_and_sponsored_still_excluded_from_dofollow():
+    from modules.link_auditor import parse_link_tag
+
+    for rel in ("nofollow", "sponsored", "ugc"):
+        soup = BeautifulSoup(f'<a href="https://x.com/" rel="{rel}">x</a>', "lxml")
+        data = parse_link_tag(soup.find("a"), "https://example.com/")
+        assert data["is_dofollow"] is False, rel
+    # A plain link with no qualifier IS dofollow.
+    soup = BeautifulSoup('<a href="https://x.com/">x</a>', "lxml")
+    assert parse_link_tag(soup.find("a"), "https://example.com/")["is_dofollow"] is True
+
+
 def test_affiliate_follow_link_flagged_but_plain_outbound_is_not():
     """The new sponsored-link check must flag a clear affiliate destination that
     is follow, but NOT ordinary outbound links (incl. utm-tagged ones)."""

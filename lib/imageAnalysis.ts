@@ -184,12 +184,12 @@ export function explainImageIssue(issue: string, img: ImageEntry): ImageIssueExp
         userImpact: "Visitors see a blank/broken placeholder instead of the intended image, which looks unpolished and can undermine trust.",
         recommendedFix: "Check the URL is correct and the file still exists on the server. Fix the path/hosting, or remove the <img> reference if the asset is gone for good.",
       };
-    case "Large file size (> 200KB)":
+    case "Large file size (> 300KB)":
       return {
         issueName: "Large File Size",
-        status: "high",
-        severity: "High",
-        whatIsIt: `"${name}" is ${formatBytes(img.file_size_bytes)}, above the 200KB guideline for web images.`,
+        status: "warning",
+        severity: "Medium",
+        whatIsIt: `"${name}" is ${formatBytes(img.file_size_bytes)}, above the 300KB guideline for web images.`,
         whyImportant: "Large images are consistently the biggest cause of slow page loads on content-heavy pages.",
         seoImpact: "Directly slows LCP and overall page weight, both of which affect Core Web Vitals and rankings.",
         userImpact: "Slower load, especially painful on mobile/slow connections; visitors may leave before the page finishes loading.",
@@ -212,7 +212,7 @@ const IMAGE_ISSUE_LABELS: { re: RegExp; label: string; detail: string }[] = [
   { re: /converted to webp/i, label: "Could be converted to WebP/AVIF", detail: "legacy format" },
   { re: /poor filename/i, label: "Poor filename convention", detail: "poor filename" },
   { re: /fail to load/i, label: "Broken image (does not load)", detail: "does not load" },
-  { re: /larger than 200kb|large file size/i, label: "Large file size (> 200KB)", detail: "over 200KB" },
+  { re: /larger than \d+kb|large file size/i, label: "Large file size (> 300KB)", detail: "over 300KB" },
 ];
 
 /**
@@ -262,7 +262,7 @@ export function deriveImageAffected(
 export function imagePriorityScore(img: ImageEntry): number {
   let score = 0;
   if (img.is_broken) score += 50;
-  if (img.issues.includes("Large file size (> 200KB)")) score += 40;
+  if (img.issues.includes("Large file size (> 300KB)")) score += 40;
   if (img.issues.includes("Missing alt text")) score += 30;
   if (img.issues.includes("Missing width/height dimensions")) score += 20;
   if (img.is_lcp_candidate) score += 15;

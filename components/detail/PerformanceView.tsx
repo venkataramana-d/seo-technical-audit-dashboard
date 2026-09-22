@@ -467,7 +467,7 @@ export function ImageSeoTab({
   }, [focusSeq, focusValue]);
 
   const missingAlt = images.filter((i) => i.alt_status === "missing").length;
-  const largeImages = images.filter((i) => i.issues.includes("Large file size (> 200KB)")).length;
+  const largeImages = images.filter((i) => i.issues.includes("Large file size (> 300KB)")).length;
   // Derived from the per-image issues list (not a raw !has_lazy check) so this
   // matches modules/image_auditor.py's own exclusion of the LCP image from
   // the lazy-loading complaint: that image correctly should NOT be lazy.
@@ -573,7 +573,7 @@ export function ImageSeoTab({
           onClick={() => setAltFilter("missing")}
         />
         <TintedMetricCard
-          label="Large Images (>200KB)"
+          label="Large Images (>300KB)"
           value={largeImages}
           tint={issueCountColors(largeImages)}
           onClick={() => setIssueOnly(true)}
