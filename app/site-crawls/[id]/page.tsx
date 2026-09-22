@@ -67,6 +67,7 @@ interface PageRow {
   linkScore: number | null;
   inlinks: number | null;
   outlinks: number | null;
+  depth: number | null;
   fetchedAt: string | null;
   issueCounts: Record<string, number>;
 }
@@ -159,6 +160,7 @@ interface TrendPoint {
   crawl_id: number;
   health_score: number | null;
   seo_score_avg: number | null;
+  themeScores: Record<string, number>;
   finished_at: string | null;
 }
 
@@ -800,7 +802,7 @@ function PagesTab({
   const [search, setSearch] = useState(initialSearch ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch ?? "");
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<"" | "linkScore">("");
+  const [sort, setSort] = useState<"" | "linkScore" | "depth">("");
   const pageSize = 25;
 
   useEffect(() => {
@@ -856,6 +858,13 @@ function PagesTab({
                 >
                   Link Score {sort === "linkScore" ? "▼" : ""}
                 </th>
+                <th
+                  className={`${GRID_TH} cursor-pointer select-none whitespace-nowrap`}
+                  onClick={() => { setSort((s) => (s === "depth" ? "" : "depth")); setPage(1); }}
+                  title="Clicks from the homepage (0 = homepage). Click to sort by shallowest."
+                >
+                  Depth {sort === "depth" ? "▲" : ""}
+                </th>
                 <th className={GRID_TH}>In/Out</th>
                 <th className={GRID_TH}>Issues</th>
                 <th className={GRID_TH}>Crawled</th>
@@ -898,6 +907,9 @@ function PagesTab({
                           {p.linkScore}
                         </span>
                       ) : "-"}
+                    </td>
+                    <td className={`${GRID_TD} tabular-nums`} title={p.depth == null ? "Unreachable from the homepage (orphan)" : undefined}>
+                      {p.depth ?? "-"}
                     </td>
                     <td className={`${GRID_TD} tabular-nums text-[var(--seo-text-light)]`}>
                       {p.inlinks ?? "-"}/{p.outlinks ?? "-"}
@@ -1376,6 +1388,8 @@ function CompareTab({ crawlId, rootUrl }: { crawlId: number; rootUrl: string | n
         )}
       </Card>
 
+      <ThemeScoresCard trend={trend} />
+
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-[var(--seo-heading)]">Compare against</h2>
@@ -1422,6 +1436,62 @@ function CompareTab({ crawlId, rootUrl }: { crawlId: number; rootUrl: string | n
         ) : null}
       </Card>
     </div>
+  );
+}
+
+/** Per-theme 0-100 scores for the latest crawl, with the delta vs. the previous
+ * crawl (M3 Tier B #5). A compact table rather than a multi-line chart keeps it
+ * readable when a crawl spans many themes. Data comes from each TrendPoint's
+ * themeScores (persisted on the crawl in finalize_crawl). */
+function ThemeScoresCard({ trend }: { trend: TrendPoint[] | null }) {
+  if (trend === null) return null;
+  const withScores = trend.filter((t) => t.themeScores && Object.keys(t.themeScores).length > 0);
+  if (withScores.length === 0) return null;
+
+  const latest = withScores[withScores.length - 1];
+  const previous = withScores.length > 1 ? withScores[withScores.length - 2] : null;
+  const themes = Object.keys(latest.themeScores).sort();
+  const scoreColor = (v: number) =>
+    v >= 80 ? "var(--seo-success)" : v >= 50 ? "var(--seo-warning)" : "var(--seo-error)";
+
+  return (
+    <Card>
+      <h2 className="mb-1 text-sm font-semibold text-[var(--seo-heading)]">Theme scores (latest crawl)</h2>
+      <p className="mb-3 text-xs text-[var(--seo-muted)]">
+        Per-theme 0-100 score for the most recent crawl, with the change since the previous crawl.
+      </p>
+      <div className="overflow-auto">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead>
+            <tr className="sticky top-0 z-10">
+              <th className={GRID_TH}>Theme</th>
+              <th className={GRID_TH}>Score</th>
+              <th className={GRID_TH}>Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            {themes.map((theme) => {
+              const score = latest.themeScores[theme];
+              const prev = previous?.themeScores?.[theme];
+              const delta = prev != null ? score - prev : null;
+              const deltaColor =
+                delta == null || delta === 0 ? "var(--seo-muted)" : delta > 0 ? "var(--seo-success)" : "var(--seo-error)";
+              return (
+                <tr key={theme}>
+                  <td className={`${GRID_TD} text-[var(--seo-heading)]`}>{theme}</td>
+                  <td className={`${GRID_TD} tabular-nums font-semibold`} style={{ color: scoreColor(score) }}>
+                    {score}
+                  </td>
+                  <td className={`${GRID_TD} tabular-nums`} style={{ color: deltaColor }}>
+                    {delta == null ? "-" : `${delta > 0 ? "+" : ""}${delta}`}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 

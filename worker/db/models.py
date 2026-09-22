@@ -158,6 +158,10 @@ class Crawl(Base):
     pages_total_estimate: Mapped[int | None] = mapped_column(Integer, nullable=True)
     health_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     seo_score_avg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # M3 Tier B: per-theme 0-100 score for this crawl ({theme: score}), computed
+    # from the crawl's Issue rows in finalize_crawl. Powers the theme-score trend
+    # across crawls. NULL for crawls finalized before this column existed.
+    theme_scores_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     project: Mapped["Project"] = relationship(back_populates="crawls")
     pages: Mapped[list["Page"]] = relationship(back_populates="crawl")
@@ -193,6 +197,10 @@ class Page(Base):
     link_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     inlinks: Mapped[int | None] = mapped_column(Integer, nullable=True)
     outlinks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # M3 Tier C: shortest click-depth from the homepage (0 = homepage), computed
+    # by BFS over the internal link graph in finalize_crawl. NULL if the page is
+    # unreachable from the homepage by internal links (an orphan).
+    depth: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # M3 Tier B: compact MinHash signature of the page's content
     # ({"minhash": [...], "shingle_count": n}) for fuzzy near-duplicate detection
     # at scale without storing the full page text. See modules/near_duplicate.py.

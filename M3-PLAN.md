@@ -36,10 +36,20 @@ crawl-to-crawl **compare**. `modules/near_duplicate.py` (MinHash/LSH) and
    (fuzzy ≥90%) + a Near-duplicate card in the Site-wide tab. Requires
    `alembic upgrade head` on Neon.
 
-### Tier C — needs crawler changes / new engine
-7. Per-page crawl depth captured at crawl time (`Page.depth`) — today depth is
-   graph-derived on demand, which is fine for M3 display.
-8. Accessibility (axe/WCAG) — genuinely new engine; largest build.
+### Tier B #5 — ✅ DONE
+Per-crawl thematic scores (`Crawl.theme_scores_json`, migration `f7a8b9c0d1e2`)
+computed at finalize + theme-score trend in the Compare tab.
+
+### Tier C — DONE
+7. ✅ Per-page crawl **depth** persisted (`Page.depth`, migration `f7a8b9c0d1e2`)
+   from the graph BFS in finalize; sortable Depth column in the Pages grid.
+10. ✅ **Accessibility (WCAG) engine** — new `modules/accessibility.py` (9 static
+    checks: unlabeled inputs, empty links/buttons, image-link names, duplicate
+    ids, positive tabindex, data-table headers, placeholder links, invalid ARIA
+    roles) wired into the per-page audit → all_issues under category "Accessibility".
+
+**M3 COMPLETE** (Tier A + Tier B #4/#5/#6 + Tier C #7/#10). Remaining deferrals
+are optional polish (a force-directed link-graph visual is an M5 item).
 
 ## This iteration
 Tier A #1 (Link Score) end-to-end + Tier A #2 (wire directives). Both are pure,

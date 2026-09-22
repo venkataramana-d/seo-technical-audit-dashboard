@@ -368,10 +368,13 @@ def load_resume_state(crawl_id: int) -> tuple[list[str], list[str]]:
 
 def _persist_link_scores(db, crawl_id: int) -> None:
     """Compute internal-PageRank Link Score (+ in/out link counts) over the whole
-    crawl graph and write it onto each Page (M3 Tier B). Runs inside the caller's
-    session so it commits with the rest of finalize_crawl. Best-effort: any error
-    is swallowed so it never blocks finalization."""
+    crawl graph and write it onto each Page (M3 Tier B). Also computes each page's
+    shortest click-depth from the homepage (M3 Tier C #7) from the same link graph
+    and writes Page.depth (0 = homepage, None = unreachable/orphan). Runs inside
+    the caller's session so it commits with the rest of finalize_crawl.
+    Best-effort: any error is swallowed so it never blocks finalization."""
     try:
+        from modules.crawl_graph import bfs_depths, build_link_graph
         from modules.link_score import build_link_score_report
         from modules.sitewide import SiteLink
 
@@ -393,12 +396,52 @@ def _persist_link_scores(db, crawl_id: int) -> None:
         project = db.get(Project, crawl.project_id) if crawl else None
         root = normalize_url(project.root_url) if project and project.root_url else None
         report = build_link_score_report(page_urls, site_links, root=root)
+
+        # Per-page click-depth from the homepage (M3 Tier C #7): BFS over the
+        # internal link graph (edges kept only to crawled pages), root depth 0.
+        depths: dict[str, int] = {}
+        if root is not None:
+            graph = build_link_graph(site_links, page_urls | {root})
+            depths = bfs_depths(root, graph)
+
         for p in pages:
             p.link_score = report.scores.get(p.normalized_url)
             p.inlinks = report.inlinks.get(p.normalized_url)
             p.outlinks = report.outlinks.get(p.normalized_url)
+            p.depth = depths.get(p.normalized_url)
     except Exception:  # noqa: BLE001
         logger.exception("link-score persistence failed for crawl %s", crawl_id)
+
+
+def _persist_theme_scores(db, crawl_id: int) -> None:
+    """Compute a per-theme 0-100 score for the crawl from its Issue rows and store
+    {theme: score} on Crawl.theme_scores_json (M3 Tier B #5). Groups issues into
+    themes with the same THEMES/keyword matching scoring.py uses, then scores each
+    theme as max(0, 100 - sum(PENALTY[severity])). The original (5-tier) severity
+    string preserved in explanation_json drives PENALTY - the mapped 3-tier
+    column would collapse Critical/High and lose that granularity. Runs inside
+    the caller's session; best-effort so it never blocks finalization."""
+    try:
+        from modules.scoring import PENALTY, get_thematic_issues
+
+        issue_rows = db.execute(select(Issue).where(Issue.crawl_id == crawl_id)).scalars().all()
+        issues = [
+            {
+                "category": (i.explanation_json or {}).get("category", "Other"),
+                "severity": (i.explanation_json or {}).get("original_severity", "Low"),
+            }
+            for i in issue_rows
+        ]
+        grouped = get_thematic_issues(issues)
+        theme_scores = {
+            theme: max(0, 100 - sum(PENALTY.get(iss.get("severity", "Low"), 2) for iss in members))
+            for theme, members in grouped.items()
+        }
+        crawl = db.get(Crawl, crawl_id)
+        if crawl is not None:
+            crawl.theme_scores_json = theme_scores
+    except Exception:  # noqa: BLE001
+        logger.exception("theme-score persistence failed for crawl %s", crawl_id)
 
 
 def finalize_crawl(crawl_id: int, status: str) -> None:
@@ -445,6 +488,8 @@ def finalize_crawl(crawl_id: int, status: str) -> None:
         # not per page. Only for completed crawls (a partial graph misleads).
         if status == "completed":
             _persist_link_scores(db, crawl_id)
+            # Per-theme crawl scores for the theme-score trend (M3 Tier B #5).
+            _persist_theme_scores(db, crawl_id)
 
         crawl.status = status
         crawl.finished_at = datetime.now(timezone.utc)

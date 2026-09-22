@@ -766,6 +766,7 @@ def audit_url(url, audit_type="auto", check_links=True, validate_links=False,
         "content": {},
         "images": {},
         "advanced": {},
+        "accessibility": {},
         "site_health": {},
         "redirect_analysis": {},
         "internal_links": {},
@@ -849,6 +850,10 @@ def audit_url(url, audit_type="auto", check_links=True, validate_links=False,
     # Expose technical_seo sub-dict at top level for easy access
     result["technical_seo"] = result["advanced"].get("technical_seo", {})
 
+    # Static accessibility (WCAG) audit: parse-only, no rendering/network.
+    from modules.accessibility import analyze_accessibility
+    result["accessibility"] = analyze_accessibility(soup, url)
+
     # ── Optional PageSpeed Insights API call ─────────────────────────────
     pagespeed_data = None
     if fetch_pagespeed:
@@ -913,7 +918,7 @@ def audit_url(url, audit_type="auto", check_links=True, validate_links=False,
     # blocks too would double-count heading and alt-text issues.
     for key in ["metadata", "canonical", "indexability", "url_structure",
                 "content", "heading_detail", "image_detail",
-                "advanced", "redirect_analysis", "mobile_audit", "site_health",
+                "advanced", "accessibility", "redirect_analysis", "mobile_audit", "site_health",
                 "internal_links", "external_links", "course_audit", "blog_audit"]:
         all_issues.extend(result.get(key, {}).get("issues", []))
     result["all_issues"] = _normalize_issues(all_issues)

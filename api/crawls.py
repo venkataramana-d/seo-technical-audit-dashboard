@@ -330,11 +330,13 @@ def _handle_pages(handler, payload):
             if search:
                 filters.append(Page.url.ilike(f"%{search}%"))
 
-            # Sortable columns (M3 Tier B: Link Score). Default is discovery order.
+            # Sortable columns (M3 Tier B: Link Score; M3 Tier C #7: Depth).
+            # Default is discovery order.
             order = {
                 "linkScore": Page.link_score.desc(),
                 "linkScoreAsc": Page.link_score.asc(),
                 "seoScore": Page.seo_score.desc(),
+                "depth": Page.depth.asc(),  # shallowest first
             }.get(sort, Page.id.asc())
 
             total = db.execute(select(func.count()).select_from(Page).where(*filters)).scalar_one()
@@ -372,6 +374,7 @@ def _handle_pages(handler, payload):
                     "linkScore": p.link_score,
                     "inlinks": p.inlinks,
                     "outlinks": p.outlinks,
+                    "depth": p.depth,
                     "fetchedAt": p.fetched_at.isoformat() if p.fetched_at else None,
                     "issueCounts": counts_by_page.get(p.id, {}),
                 }

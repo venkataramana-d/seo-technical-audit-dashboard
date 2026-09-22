@@ -119,7 +119,7 @@ def get_score_trend(project_id: int) -> list[dict]:
     chronological order - the trend-line data source."""
     with SessionLocal() as db:
         rows = db.execute(
-            select(Crawl.id, Crawl.health_score, Crawl.seo_score_avg, Crawl.finished_at)
+            select(Crawl.id, Crawl.health_score, Crawl.seo_score_avg, Crawl.theme_scores_json, Crawl.finished_at)
             .where(Crawl.project_id == project_id, Crawl.status == "completed")
             .order_by(Crawl.finished_at.asc())
         ).all()
@@ -128,7 +128,10 @@ def get_score_trend(project_id: int) -> list[dict]:
                 "crawl_id": crawl_id,
                 "health_score": health_score,
                 "seo_score_avg": seo_score_avg,
+                # {theme: score} for this crawl (M3 Tier B #5); {} for crawls
+                # finalized before the column existed.
+                "themeScores": theme_scores_json or {},
                 "finished_at": finished_at.isoformat() if finished_at else None,
             }
-            for crawl_id, health_score, seo_score_avg, finished_at in rows
+            for crawl_id, health_score, seo_score_avg, theme_scores_json, finished_at in rows
         ]
