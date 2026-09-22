@@ -26,7 +26,9 @@ crawl-to-crawl **compare**. `modules/near_duplicate.py` (MinHash/LSH) and
    Issue rows (display now; per-theme trend needs Tier B).
 
 ### Tier B — needs a migration (persist for server-side sort/trend)
-4. Persist Link Score + inlink/outlink counts on `Page` (sortable Pages grid).
+4. ✅ **DONE** — Persist Link Score + inlink/outlink counts on `Page` (migration
+   `d5e6f7a8b9c0`); computed in `finalize_crawl`; sortable **Link Score column +
+   In/Out** in the Pages grid. Requires `alembic upgrade head` on Neon.
 5. Persist per-crawl thematic scores (theme-level trend lines).
 6. Near-duplicate at scale: `Page.content_signature_json`, switch
    `_handle_near_duplicates` to `near_duplicate_from_signatures`.

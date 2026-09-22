@@ -64,6 +64,9 @@ interface PageRow {
   canonicalUrl: string | null;
   h1: string | null;
   seoScore: number | null;
+  linkScore: number | null;
+  inlinks: number | null;
+  outlinks: number | null;
   fetchedAt: string | null;
   issueCounts: Record<string, number>;
 }
@@ -790,6 +793,7 @@ function PagesTab({
   const [search, setSearch] = useState(initialSearch ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch ?? "");
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<"" | "linkScore">("");
   const pageSize = 25;
 
   useEffect(() => {
@@ -804,6 +808,7 @@ function PagesTab({
     search: debouncedSearch,
     page,
     pageSize,
+    sort,
   });
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
@@ -837,6 +842,14 @@ function PagesTab({
                 <th className={GRID_TH}>Status</th>
                 <th className={GRID_TH}>Title</th>
                 <th className={GRID_TH}>Score</th>
+                <th
+                  className={`${GRID_TH} cursor-pointer select-none whitespace-nowrap`}
+                  onClick={() => { setSort((s) => (s === "linkScore" ? "" : "linkScore")); setPage(1); }}
+                  title="Internal PageRank (0-100). Click to sort by highest."
+                >
+                  Link Score {sort === "linkScore" ? "▼" : ""}
+                </th>
+                <th className={GRID_TH}>In/Out</th>
                 <th className={GRID_TH}>Issues</th>
                 <th className={GRID_TH}>Crawled</th>
               </tr>
@@ -866,6 +879,22 @@ function PagesTab({
                       {p.title || "-"}
                     </td>
                     <td className={`${GRID_TD} tabular-nums`}>{p.seoScore != null ? Math.round(p.seoScore) : "-"}</td>
+                    <td className={`${GRID_TD} tabular-nums`}>
+                      {p.linkScore != null ? (
+                        <span
+                          className="inline-block rounded px-1.5 py-0.5 text-xs font-semibold"
+                          style={{
+                            color: p.linkScore >= 60 ? "var(--seo-success)" : p.linkScore >= 25 ? "var(--seo-warning)" : "var(--seo-error)",
+                            backgroundColor: p.linkScore >= 60 ? "var(--seo-success-bg)" : p.linkScore >= 25 ? "var(--seo-warning-bg)" : "var(--seo-error-bg)",
+                          }}
+                        >
+                          {p.linkScore}
+                        </span>
+                      ) : "-"}
+                    </td>
+                    <td className={`${GRID_TD} tabular-nums text-[var(--seo-text-light)]`}>
+                      {p.inlinks ?? "-"}/{p.outlinks ?? "-"}
+                    </td>
                     <td className={GRID_TD}>
                       <div className="flex flex-wrap items-center gap-2">
                         {Object.entries(p.issueCounts).length === 0 ? (

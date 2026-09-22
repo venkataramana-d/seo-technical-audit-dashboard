@@ -323,17 +323,25 @@ def _handle_pages(handler, payload):
             return
         page_num, page_size = _parse_pagination(payload)
         search = (payload.get("search") or "").strip()
+        sort = (payload.get("sort") or "").strip()
 
         with SessionLocal() as db:
             filters = [Page.crawl_id == crawl_id]
             if search:
                 filters.append(Page.url.ilike(f"%{search}%"))
 
+            # Sortable columns (M3 Tier B: Link Score). Default is discovery order.
+            order = {
+                "linkScore": Page.link_score.desc(),
+                "linkScoreAsc": Page.link_score.asc(),
+                "seoScore": Page.seo_score.desc(),
+            }.get(sort, Page.id.asc())
+
             total = db.execute(select(func.count()).select_from(Page).where(*filters)).scalar_one()
             rows = db.execute(
                 select(Page)
                 .where(*filters)
-                .order_by(Page.id.asc())
+                .order_by(order, Page.id.asc())
                 .offset((page_num - 1) * page_size)
                 .limit(page_size)
             ).scalars().all()
@@ -361,6 +369,9 @@ def _handle_pages(handler, payload):
                     "canonicalUrl": p.canonical_url,
                     "h1": p.h1,
                     "seoScore": p.seo_score,
+                    "linkScore": p.link_score,
+                    "inlinks": p.inlinks,
+                    "outlinks": p.outlinks,
                     "fetchedAt": p.fetched_at.isoformat() if p.fetched_at else None,
                     "issueCounts": counts_by_page.get(p.id, {}),
                 }

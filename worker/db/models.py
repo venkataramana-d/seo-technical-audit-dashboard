@@ -187,6 +187,12 @@ class Page(Base):
     is_indexable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     hreflang_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
     schema_types_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # M3 T3.1 (Tier B): internal PageRank Link Score (0-100) + internal in/out
+    # link counts, computed over the whole link graph in finalize_crawl once the
+    # crawl is complete. Persisted so the Pages grid can sort/filter server-side.
+    link_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    inlinks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    outlinks: Mapped[int | None] = mapped_column(Integer, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     crawl: Mapped["Crawl"] = relationship(back_populates="pages")

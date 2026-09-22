@@ -13,10 +13,13 @@ route is a later phase, not part of Phase 1.
 from __future__ import annotations
 
 import hashlib
+import logging
 from datetime import datetime, timezone
 
 from croniter import croniter
 from sqlalchemy import select
+
+logger = logging.getLogger(__name__)
 
 from modules.crawler import CrawlConfig as ModuleCrawlConfig
 from modules.crawler import normalize_url
@@ -349,6 +352,41 @@ def load_resume_state(crawl_id: int) -> tuple[list[str], list[str]]:
     return visited, frontier
 
 
+def _persist_link_scores(db, crawl_id: int) -> None:
+    """Compute internal-PageRank Link Score (+ in/out link counts) over the whole
+    crawl graph and write it onto each Page (M3 Tier B). Runs inside the caller's
+    session so it commits with the rest of finalize_crawl. Best-effort: any error
+    is swallowed so it never blocks finalization."""
+    try:
+        from modules.link_score import build_link_score_report
+        from modules.sitewide import SiteLink
+
+        pages = db.execute(select(Page).where(Page.crawl_id == crawl_id)).scalars().all()
+        if not pages:
+            return
+        url_by_id = {p.id: p.normalized_url for p in pages}
+        page_urls = set(url_by_id.values())
+        link_rows = db.execute(
+            select(Link.page_id, Link.target_url, Link.link_type)
+            .join(Page, Link.page_id == Page.id)
+            .where(Page.crawl_id == crawl_id)
+        ).all()
+        site_links = [
+            SiteLink(source_url=url_by_id[pid], target_url=t, link_type=lt)
+            for (pid, t, lt) in link_rows if pid in url_by_id
+        ]
+        crawl = db.get(Crawl, crawl_id)
+        project = db.get(Project, crawl.project_id) if crawl else None
+        root = normalize_url(project.root_url) if project and project.root_url else None
+        report = build_link_score_report(page_urls, site_links, root=root)
+        for p in pages:
+            p.link_score = report.scores.get(p.normalized_url)
+            p.inlinks = report.inlinks.get(p.normalized_url)
+            p.outlinks = report.outlinks.get(p.normalized_url)
+    except Exception:  # noqa: BLE001
+        logger.exception("link-score persistence failed for crawl %s", crawl_id)
+
+
 def finalize_crawl(crawl_id: int, status: str) -> None:
     """Runs the Phase 2 post-crawl aggregation pass (only on success - a
     failed crawl's partial data isn't a meaningful basis for sitewide
@@ -388,6 +426,11 @@ def finalize_crawl(crawl_id: int, status: str) -> None:
             clean_pages = sum(1 for p in audited_pages if p.id not in error_page_ids)
             crawl.health_score = round(100 * clean_pages / len(audited_pages), 2)
             crawl.seo_score_avg = round(sum(p.seo_score for p in audited_pages) / len(audited_pages), 2)
+
+        # Link Score needs the whole graph, so it's computed here (crawl done),
+        # not per page. Only for completed crawls (a partial graph misleads).
+        if status == "completed":
+            _persist_link_scores(db, crawl_id)
 
         crawl.status = status
         crawl.finished_at = datetime.now(timezone.utc)

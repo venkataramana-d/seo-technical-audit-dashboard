@@ -83,6 +83,24 @@ def test_load_resume_state_from_persisted_pages(monkeypatch, isolated_db):
     assert "https://example.com/about" not in frontier
 
 
+def test_completed_crawl_persists_link_scores(monkeypatch, isolated_db):
+    # M3 Tier B: finalize_crawl computes internal-PageRank Link Score over the
+    # crawl graph and writes it onto each Page.
+    monkeypatch.setattr(tasks, "crawl_site", _fake_crawl_site_success)
+    with isolated_db() as db:
+        crawl_id = crawl_service.create_crawl(db, "https://example.com", max_pages=10).id
+    tasks.handle_crawl_start({"crawl_id": crawl_id})
+    with isolated_db() as db:
+        pages = db.query(Page).filter(Page.crawl_id == crawl_id).all()
+        assert pages, "expected persisted pages"
+        # Every page got a link score (0-100) and in/out counts populated.
+        assert all(p.link_score is not None for p in pages)
+        assert all(0 <= p.link_score <= 100 for p in pages)
+        # /about is linked from home -> it should have >=1 inlink.
+        about = next(p for p in pages if p.normalized_url.endswith("/about"))
+        assert about.inlinks >= 1
+
+
 def test_interrupted_crawl_with_pages_is_paused_not_failed(monkeypatch, isolated_db):
     # A crawl that persists a page then raises must be left resumable (paused),
     # not failed, so no work is lost.
