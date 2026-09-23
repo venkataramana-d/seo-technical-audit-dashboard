@@ -11,8 +11,5 @@
     "api/insights.py": { "maxDuration": 30 },
     "api/cron.py": { "maxDuration": 60 },
     "api/api-keys.py": { "maxDuration": 30 }
-  },
-  "crons": [
-    { "path": "/api/cron", "schedule": "0 3 * * *" }
-  ]
+  }
 }
