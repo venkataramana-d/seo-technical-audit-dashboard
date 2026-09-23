@@ -1,12 +1,14 @@
-"""Tests for api/share.py - the public, unauthenticated shared-report endpoint
-(M5 T5.2). Loads api/share.py via importlib and drives do_POST/do_GET with a
-MagicMock-based fake BaseHTTPRequestHandler over in-memory SQLite - same
-harness as tests/test_api_crawls.py / tests/test_crawl_export_api.py.
+"""Tests for the public, unauthenticated shared-report actions (M5 T5.2), now
+consolidated from api/share.py into api/crawls.py as the share* actions
+(shareSummary/sharePages/shareIssues/shareExport). Loads api/crawls.py via
+importlib and drives do_POST with a MagicMock-based fake BaseHTTPRequestHandler
+over in-memory SQLite - same harness as tests/test_api_crawls.py /
+tests/test_crawl_export_api.py.
 
 The key property under test: the share token is the ONLY capability. A valid
 token resolves exactly one crawl with no auth; an unknown/revoked token 404s
 and never falls back to any other crawl. A round-trip test also mints a token
-through api/crawls.py (setShare) and reads it back through api/share.py.
+through setShare and reads it back through the share* actions.
 """
 
 import importlib.util
@@ -31,8 +33,12 @@ def _load(name, relative_path):
     return module
 
 
-share = _load("share_under_test", "api/share.py")
+# api/share.py was consolidated into api/crawls.py: its actions are now the
+# public share* actions on crawls.py (summary->shareSummary, pages->sharePages,
+# issues->shareIssues, export->shareExport). `share` is aliased to the crawls
+# module so the existing do_POST call sites still read naturally.
 crawls = _load("crawls_for_share_under_test", "api/crawls.py")
+share = crawls
 
 
 def _mock_handler(body: dict | None = None, path: str = "/api/share"):
@@ -99,7 +105,7 @@ def _seed_shared_crawl(session_factory, *, token: str | None = "tok-abc123", wit
 # token is the only capability
 # --------------------------------------------------------------------------- #
 def test_missing_token_returns_400(isolated_db):
-    h = _mock_handler({"action": "summary"})
+    h = _mock_handler({"action": "shareSummary"})
     share.handler.do_POST(h)
     status, body = _json_response(h)
     assert status == 400
@@ -108,7 +114,7 @@ def test_missing_token_returns_400(isolated_db):
 
 def test_unknown_token_returns_404(isolated_db):
     _seed_shared_crawl(isolated_db, token="the-real-token")
-    h = _mock_handler({"token": "not-the-token", "action": "summary"})
+    h = _mock_handler({"token": "not-the-token", "action": "shareSummary"})
     share.handler.do_POST(h)
     status, body = _json_response(h)
     assert status == 404
@@ -118,7 +124,7 @@ def test_unknown_token_returns_404(isolated_db):
 def test_revoked_token_returns_404(isolated_db):
     # A crawl with no share_token cannot be reached by any token.
     _seed_shared_crawl(isolated_db, token=None)
-    h = _mock_handler({"token": "", "action": "summary"})
+    h = _mock_handler({"token": "", "action": "shareSummary"})
     share.handler.do_POST(h)
     status, _ = _json_response(h)
     assert status == 400  # blank token rejected before lookup
@@ -150,7 +156,7 @@ def test_unknown_action_returns_400(isolated_db):
 # --------------------------------------------------------------------------- #
 def test_summary_returns_meta_and_counts(isolated_db):
     _crawl_id, token = _seed_shared_crawl(isolated_db)
-    h = _mock_handler({"token": token, "action": "summary"})
+    h = _mock_handler({"token": token, "action": "shareSummary"})
     share.handler.do_POST(h)
     status, body = _json_response(h)
     assert status == 200
@@ -161,18 +167,9 @@ def test_summary_returns_meta_and_counts(isolated_db):
     assert body["issuesCount"] == 2
 
 
-def test_summary_defaults_action_when_omitted(isolated_db):
-    _crawl_id, token = _seed_shared_crawl(isolated_db)
-    h = _mock_handler({"token": token})
-    share.handler.do_POST(h)
-    status, body = _json_response(h)
-    assert status == 200
-    assert "meta" in body
-
-
 def test_pages_returns_rows(isolated_db):
     _crawl_id, token = _seed_shared_crawl(isolated_db)
-    h = _mock_handler({"token": token, "action": "pages"})
+    h = _mock_handler({"token": token, "action": "sharePages"})
     share.handler.do_POST(h)
     status, body = _json_response(h)
     assert status == 200
@@ -186,13 +183,13 @@ def test_pages_returns_rows(isolated_db):
 def test_issues_returns_rows_and_filters_by_severity(isolated_db):
     _crawl_id, token = _seed_shared_crawl(isolated_db)
 
-    h = _mock_handler({"token": token, "action": "issues"})
+    h = _mock_handler({"token": token, "action": "shareIssues"})
     share.handler.do_POST(h)
     status, body = _json_response(h)
     assert status == 200
     assert body["total"] == 2
 
-    h2 = _mock_handler({"token": token, "action": "issues", "severity": "error"})
+    h2 = _mock_handler({"token": token, "action": "shareIssues", "severity": "error"})
     share.handler.do_POST(h2)
     status2, body2 = _json_response(h2)
     assert status2 == 200
@@ -206,7 +203,7 @@ def test_issues_returns_rows_and_filters_by_severity(isolated_db):
 # --------------------------------------------------------------------------- #
 def test_export_json_returns_report(isolated_db):
     crawl_id, token = _seed_shared_crawl(isolated_db)
-    h = _mock_handler({"token": token, "action": "export", "format": "json"})
+    h = _mock_handler({"token": token, "action": "shareExport", "format": "json"})
     share.handler.do_POST(h)
     status, headers, data = _binary_response(h)
     assert status == 200
@@ -218,7 +215,7 @@ def test_export_json_returns_report(isolated_db):
 
 def test_export_csv_returns_report(isolated_db):
     crawl_id, token = _seed_shared_crawl(isolated_db)
-    h = _mock_handler({"token": token, "action": "export", "format": "csv"})
+    h = _mock_handler({"token": token, "action": "shareExport", "format": "csv"})
     share.handler.do_POST(h)
     status, headers, data = _binary_response(h)
     assert status == 200
@@ -229,7 +226,7 @@ def test_export_csv_returns_report(isolated_db):
 
 def test_export_invalid_format_returns_400(isolated_db):
     _crawl_id, token = _seed_shared_crawl(isolated_db)
-    h = _mock_handler({"token": token, "action": "export", "format": "xml"})
+    h = _mock_handler({"token": token, "action": "shareExport", "format": "xml"})
     share.handler.do_POST(h)
     status, body = _json_response(h)
     assert status == 400
@@ -238,33 +235,16 @@ def test_export_invalid_format_returns_400(isolated_db):
 
 def test_export_empty_crawl_returns_404(isolated_db):
     _crawl_id, token = _seed_shared_crawl(isolated_db, with_page=False)
-    h = _mock_handler({"token": token, "action": "export", "format": "json"})
+    h = _mock_handler({"token": token, "action": "shareExport", "format": "json"})
     share.handler.do_POST(h)
     status, body = _json_response(h)
     assert status == 404
 
 
 # --------------------------------------------------------------------------- #
-# GET convenience alias
-# --------------------------------------------------------------------------- #
-def test_get_with_token_query_returns_summary(isolated_db):
-    _crawl_id, token = _seed_shared_crawl(isolated_db)
-    h = _mock_handler(path=f"/api/share?token={token}")
-    share.handler.do_GET(h)
-    status, body = _json_response(h)
-    assert status == 200
-    assert body["meta"]["rootUrl"] == "https://example.com"
-
-
-def test_get_without_token_returns_400(isolated_db):
-    h = _mock_handler(path="/api/share")
-    share.handler.do_GET(h)
-    status, _ = _json_response(h)
-    assert status == 400
-
-
-# --------------------------------------------------------------------------- #
-# round-trip: mint via api/crawls.py setShare, read via api/share.py
+# round-trip: mint via crawls.py setShare, read via crawls.py share* actions.
+# (The old api/share.py do_GET(?token=) convenience alias was NOT ported to
+# crawls.py - crawls.py has no do_GET - so its two tests were dropped.)
 # --------------------------------------------------------------------------- #
 def test_set_share_then_public_read_round_trip(isolated_db):
     crawl_id, _ = _seed_shared_crawl(isolated_db, token=None)  # unshared
@@ -284,7 +264,7 @@ def test_set_share_then_public_read_round_trip(isolated_db):
     assert body2["shareToken"] == token
 
     # Read publicly via the minted token.
-    hr = _mock_handler({"token": token, "action": "summary"})
+    hr = _mock_handler({"token": token, "action": "shareSummary"})
     share.handler.do_POST(hr)
     sr, br = _json_response(hr)
     assert sr == 200
@@ -296,7 +276,7 @@ def test_set_share_then_public_read_round_trip(isolated_db):
     sx, bx = _json_response(hx)
     assert sx == 200 and bx["ok"] is True
 
-    hr2 = _mock_handler({"token": token, "action": "summary"})
+    hr2 = _mock_handler({"token": token, "action": "shareSummary"})
     share.handler.do_POST(hr2)
     sr2, _ = _json_response(hr2)
     assert sr2 == 404

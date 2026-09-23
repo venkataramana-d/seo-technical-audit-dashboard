@@ -24,7 +24,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from modules._http import bulk_url_cap, read_json_body, require_str, send_json  # noqa: E402
 from sqlalchemy import func, select  # noqa: E402
 from worker.crawl_diff import compare_crawls, get_previous_completed_crawl, get_score_trend  # noqa: E402
-from worker.crawl_export import new_share_token  # noqa: E402
+from worker.crawl_export import build_crawl_results, crawl_meta, get_crawl_by_share_token, new_share_token  # noqa: E402
+from modules.report_generator import generate_csv, generate_excel, generate_pdf  # noqa: E402
+import json  # noqa: E402
+
+# Report export MIME types, shared by the authenticated `export` action and the
+# public `shareExport` action (M5 T5.2 - both consolidated into this function to
+# stay under the Hobby plan's 12-serverless-function cap).
+_EXPORT_MIME = {
+    "csv": "text/csv",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "pdf": "application/pdf",
+    "json": "application/json",
+}
+_INVALID_TOKEN = "This shared report link is invalid or has been revoked."
 from worker.crawl_service import create_crawl, finalize_crawl, persist_result, set_crawl_config_schedule  # noqa: E402
 from worker.db.models import Crawl, CrawlConfig, Issue, Link, Page, Project  # noqa: E402
 from worker.db.session import SessionLocal  # noqa: E402
@@ -33,7 +46,7 @@ from worker.auth import AuthError  # noqa: E402
 from worker.queue import enqueue  # noqa: E402
 
 # Actions that operate on a specific crawl id - gated by per-org ownership.
-_CRAWL_SCOPED = {"status", "thematic", "trend", "compare", "setSchedule", "pages", "issues", "links", "ingest", "finalize", "pause", "resume", "setShare", "revokeShare"}
+_CRAWL_SCOPED = {"status", "thematic", "trend", "compare", "setSchedule", "pages", "issues", "links", "ingest", "finalize", "pause", "resume", "setShare", "revokeShare", "export"}
 # Actions that resolve an org (list/create derive scope from the session too).
 _ORG_SCOPED = {"list", "create"} | _CRAWL_SCOPED
 from worker.site_audit import get_thematic_report  # noqa: E402
@@ -621,6 +634,214 @@ def _handle_revoke_share(handler, payload):
         send_json(handler, 500, {"error": "Internal error while revoking the share link."})
 
 
+def _write_report(handler, crawl_ref, fmt, results):
+    """Serialize `results` in the requested format and stream it as a file
+    download. Shared by the authenticated `export` and public `shareExport`
+    actions. Assumes fmt is already validated against _EXPORT_MIME."""
+    if fmt == "csv":
+        data = generate_csv(results)
+    elif fmt == "xlsx":
+        data = generate_excel(results)
+    elif fmt == "json":
+        data = json.dumps(results, default=str, indent=2).encode("utf-8")
+    else:
+        data = generate_pdf(results)
+    handler.send_response(200)
+    handler.send_header("Content-Type", _EXPORT_MIME[fmt])
+    handler.send_header("Content-Disposition", f'attachment; filename="crawl-{crawl_ref}-report.{fmt}"')
+    handler.send_header("Content-Length", str(len(data)))
+    handler.end_headers()
+    handler.wfile.write(data)
+
+
+def _handle_export(handler, payload):
+    """M5 T5.2: export a persisted crawl (its Page/Issue/Link rows) as CSV/
+    Excel/PDF/JSON, reusing modules/report_generator via worker/crawl_export.
+    Crawl-scoped: the do_POST org gate already verified ownership."""
+    crawl_id = _parse_crawl_id(handler, payload)
+    if crawl_id is None:
+        return
+    fmt = (payload.get("format") or "csv").strip().lower()
+    if fmt not in _EXPORT_MIME:
+        send_json(handler, 400, {"error": "format must be csv, xlsx, pdf, or json"})
+        return
+    try:
+        with SessionLocal() as db:
+            results = build_crawl_results(db, crawl_id)
+            if not results:
+                send_json(handler, 400, {"error": "This crawl has no pages to export yet."})
+                return
+            meta = crawl_meta(db, crawl_id)
+        _write_report(handler, meta.get("id") or crawl_id, fmt, results)
+    except Exception:  # noqa: BLE001
+        logger.exception("crawls.py (export) request failed for crawl %s", crawl_id)
+        send_json(handler, 500, {"error": "Internal error while generating the export."})
+
+
+# --------------------------------------------------------------------------- #
+# Public shared-report actions (M5 T5.2). NO auth, NO crawlId: the long,
+# unguessable share token (minted by setShare) IS the capability. These are
+# deliberately NOT in _ORG_SCOPED so the do_POST org gate never runs for them;
+# each resolves exactly one crawl by token (bypassing org scope) or 404s.
+# --------------------------------------------------------------------------- #
+def _resolve_share_crawl(handler, db, payload):
+    token = (payload.get("token") or "").strip()
+    if not token:
+        send_json(handler, 400, {"error": "token is required"})
+        return None
+    crawl = get_crawl_by_share_token(db, token)
+    if crawl is None:
+        send_json(handler, 404, {"error": _INVALID_TOKEN})
+        return None
+    return crawl
+
+
+def _handle_share_summary(handler, payload):
+    try:
+        with SessionLocal() as db:
+            crawl = _resolve_share_crawl(handler, db, payload)
+            if crawl is None:
+                return
+            pages_count = db.execute(
+                select(func.count()).select_from(Page).where(Page.crawl_id == crawl.id)
+            ).scalar_one()
+            severity_rows = db.execute(
+                select(Issue.severity, func.count()).where(Issue.crawl_id == crawl.id).group_by(Issue.severity)
+            ).all()
+            severity_counts = {severity: count for severity, count in severity_rows}
+            send_json(handler, 200, {
+                "meta": crawl_meta(db, crawl.id),
+                "pagesCount": pages_count,
+                "issueSeverityCounts": severity_counts,
+                "issuesCount": sum(severity_counts.values()),
+            })
+    except Exception:  # noqa: BLE001
+        logger.exception("crawls.py (shareSummary) request failed")
+        send_json(handler, 500, {"error": "Internal error while loading the shared report."})
+
+
+def _handle_share_pages(handler, payload):
+    try:
+        with SessionLocal() as db:
+            crawl = _resolve_share_crawl(handler, db, payload)
+            if crawl is None:
+                return
+            page_num, page_size = _parse_pagination(payload)
+            search = (payload.get("search") or "").strip()
+            filters = [Page.crawl_id == crawl.id]
+            if search:
+                filters.append(Page.url.ilike(f"%{search}%"))
+            total = db.execute(select(func.count()).select_from(Page).where(*filters)).scalar_one()
+            rows = db.execute(
+                select(Page).where(*filters).order_by(Page.id.asc())
+                .offset((page_num - 1) * page_size).limit(page_size)
+            ).scalars().all()
+            page_ids = [p.id for p in rows]
+            counts_by_page: dict[int, dict[str, int]] = {}
+            if page_ids:
+                for pid, severity, count in db.execute(
+                    select(Issue.page_id, Issue.severity, func.count())
+                    .where(Issue.page_id.in_(page_ids)).group_by(Issue.page_id, Issue.severity)
+                ).all():
+                    counts_by_page.setdefault(pid, {})[severity] = count
+            pages_out = [
+                {
+                    "id": p.id, "url": p.url, "statusCode": p.status_code, "title": p.title,
+                    "metaDescription": p.meta_description, "canonicalUrl": p.canonical_url,
+                    "h1": p.h1, "seoScore": p.seo_score, "depth": p.depth,
+                    "issueCounts": counts_by_page.get(p.id, {}),
+                }
+                for p in rows
+            ]
+            send_json(handler, 200, {"pages": pages_out, "total": total, "page": page_num, "pageSize": page_size})
+    except Exception:  # noqa: BLE001
+        logger.exception("crawls.py (sharePages) request failed")
+        send_json(handler, 500, {"error": "Internal error while loading the shared report."})
+
+
+def _handle_share_issues(handler, payload):
+    try:
+        with SessionLocal() as db:
+            crawl = _resolve_share_crawl(handler, db, payload)
+            if crawl is None:
+                return
+            page_num, page_size = _parse_pagination(payload)
+            severity = (payload.get("severity") or "").strip() or None
+            search = (payload.get("search") or "").strip()
+            filters = [Issue.crawl_id == crawl.id]
+            if severity:
+                filters.append(Issue.severity == severity)
+            if search:
+                filters.append(Issue.issue_type.ilike(f"%{search}%"))
+            total = db.execute(select(func.count()).select_from(Issue).where(*filters)).scalar_one()
+            rows = db.execute(
+                select(Issue, Page.url).outerjoin(Page, Issue.page_id == Page.id).where(*filters)
+                .order_by(Issue.id.asc()).offset((page_num - 1) * page_size).limit(page_size)
+            ).all()
+            issues_out = [
+                {
+                    "id": issue.id, "issueType": issue.issue_type, "severity": issue.severity,
+                    "category": (issue.explanation_json or {}).get("category", "Other"),
+                    "recommendation": (issue.explanation_json or {}).get("recommendation", ""),
+                    "impactScore": issue.impact_score, "effortLevel": issue.effort_level, "pageUrl": url,
+                }
+                for issue, url in rows
+            ]
+            send_json(handler, 200, {"issues": issues_out, "total": total, "page": page_num, "pageSize": page_size})
+    except Exception:  # noqa: BLE001
+        logger.exception("crawls.py (shareIssues) request failed")
+        send_json(handler, 500, {"error": "Internal error while loading the shared report."})
+
+
+def _handle_share_export(handler, payload):
+    try:
+        fmt = (payload.get("format") or "csv").strip().lower()
+        if fmt not in _EXPORT_MIME:
+            send_json(handler, 400, {"error": "format must be csv, xlsx, pdf, or json"})
+            return
+        with SessionLocal() as db:
+            crawl = _resolve_share_crawl(handler, db, payload)
+            if crawl is None:
+                return
+            results = build_crawl_results(db, crawl.id)
+            if not results:
+                send_json(handler, 404, {"error": "This crawl has no pages to export."})
+                return
+            crawl_ref = crawl.id
+        _write_report(handler, crawl_ref, fmt, results)
+    except Exception:  # noqa: BLE001
+        logger.exception("crawls.py (shareExport) request failed")
+        send_json(handler, 500, {"error": "Internal error while generating the export."})
+
+
+def _handle_cron(handler, payload):
+    """M5 T5.4: fire due schedules (and, if opted in, run a bounded server-side
+    crawl chunk). Public action - guarded by the CRON_SECRET bearer token when
+    set - so an external scheduler (cron-job.org, GitHub Actions, etc.) can
+    trigger it, since Vercel's built-in cron is plan-gated on Hobby. Not in
+    _ORG_SCOPED, so the do_POST org gate never runs for it."""
+    try:
+        secret = (os.environ.get("CRON_SECRET") or "").strip()
+        if secret and (handler.headers.get("Authorization") or "") != f"Bearer {secret}":
+            send_json(handler, 401, {"error": "unauthorized"})
+            return
+        from worker.scheduler import enqueue_due_crawls
+        enqueued = enqueue_due_crawls()
+        execute = str(os.environ.get("CRON_EXECUTE_CRAWLS") or "").strip().lower() in ("1", "true", "yes", "on")
+        summary = {"enqueued": enqueued, "execution_enabled": execute}
+        if execute:
+            from worker import cron_runner
+            run_summary = cron_runner.process_due()
+            summary["ran"] = run_summary.get("ran", [])
+            summary["finished"] = run_summary.get("finished", [])
+        else:
+            summary["note"] = "server-side crawl execution is disabled; set CRON_EXECUTE_CRAWLS=1 to enable it"
+        send_json(handler, 200, summary)
+    except Exception:  # noqa: BLE001
+        logger.exception("crawls.py (cron) request failed")
+        send_json(handler, 500, {"error": "Internal error while running cron."})
+
+
 _ACTIONS = {
     "list": _handle_list,
     "create": _handle_create,
@@ -638,6 +859,12 @@ _ACTIONS = {
     "resume": _handle_resume,
     "setShare": _handle_set_share,
     "revokeShare": _handle_revoke_share,
+    "export": _handle_export,
+    "shareSummary": _handle_share_summary,
+    "sharePages": _handle_share_pages,
+    "shareIssues": _handle_share_issues,
+    "shareExport": _handle_share_export,
+    "cron": _handle_cron,
 }
 
 

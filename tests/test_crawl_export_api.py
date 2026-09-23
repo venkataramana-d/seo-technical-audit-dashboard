@@ -27,7 +27,10 @@ def _load(name, relative_path):
     return module
 
 
-crawl_export_api = _load("crawl_export_under_test", "api/crawl-export.py")
+# api/crawl-export.py was consolidated into api/crawls.py (action "export") to
+# stay under the Hobby plan's 12-serverless-function cap; the module var name is
+# kept so the existing do_POST test bodies (all {"action": "export", ...}) stand.
+crawl_export_api = _load("crawls_for_export_under_test", "api/crawls.py")
 
 
 def _mock_handler(body: dict, cookie: str | None = None):

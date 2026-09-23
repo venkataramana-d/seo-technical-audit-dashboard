@@ -1792,12 +1792,13 @@ const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
   { format: "json", label: "JSON" },
 ];
 
-// POST /api/crawl-export and download the returned binary attachment. Mirrors
-// lib/reportExport.ts::downloadResultsJson's object-URL + temp-anchor pattern,
-// but the payload comes from the server as a blob (not built client-side). On a
-// non-ok response the body is JSON {error}, so it's parsed for the message.
+// POST /api/crawls (action "export") and download the returned binary
+// attachment. Mirrors lib/reportExport.ts::downloadResultsJson's object-URL +
+// temp-anchor pattern, but the payload comes from the server as a blob (not
+// built client-side). On a non-ok response the body is JSON {error}, so it's
+// parsed for the message.
 async function downloadCrawlExport(crawlId: number, format: ExportFormat): Promise<void> {
-  const res = await fetch("/api/crawl-export", {
+  const res = await fetch("/api/crawls", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "export", crawlId, format }),

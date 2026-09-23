@@ -101,7 +101,8 @@ def test_all_actions_registered():
     assert set(crawls._ACTIONS) == {
         "list", "create", "ingest", "finalize", "status", "thematic", "trend",
         "pages", "issues", "links", "compare", "setSchedule", "pause", "resume",
-        "setShare", "revokeShare",
+        "setShare", "revokeShare", "export",
+        "shareSummary", "sharePages", "shareIssues", "shareExport", "cron",
     }
 
 

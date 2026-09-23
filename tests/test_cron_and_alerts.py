@@ -414,33 +414,48 @@ def test_regression_alert_html_contains_key_facts():
 
 
 # =========================================================================== #
-# api/cron.py handler
+# api/crawls.py cron action (was api/cron.py's do_GET, consolidated into
+# crawls.py as the public POST action {"action": "cron"} to stay under the
+# Hobby plan's 12-serverless-function cap). _handle_cron imports
+# enqueue_due_crawls/cron_runner lazily, so these tests patch them on the
+# worker.scheduler / worker.cron_runner modules (imported above), not on the
+# freshly-loaded crawls module.
 # =========================================================================== #
 def _load_cron_module():
     import importlib.util
     import os
 
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "api", "cron.py")
-    spec = importlib.util.spec_from_file_location("api_cron", path)
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "api", "crawls.py")
+    spec = importlib.util.spec_from_file_location("api_crawls_for_cron", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
 
-class _FakeHandler:
-    """Minimal stand-in for a BaseHTTPRequestHandler instance: only .headers is
-    read by do_GET, and send_json is patched to capture instead of writing."""
-    def __init__(self, headers=None):
-        self.headers = headers or {}
+def _cron_handler(headers=None):
+    """Fake BaseHTTPRequestHandler for the cron POST: a JSON body carrying
+    {"action": "cron"} plus whatever request headers (e.g. Authorization) the
+    test needs. send_json is patched in _run_cron, so wfile output is unused."""
+    import io
+    import json
+    from unittest.mock import MagicMock
+
+    body = json.dumps({"action": "cron"}).encode()
+    h = MagicMock()
+    hdrs = dict(headers or {})
+    hdrs["Content-Length"] = str(len(body))
+    h.headers = hdrs
+    h.rfile = io.BytesIO(body)
+    h.wfile = io.BytesIO()
+    return h
 
 
 def _run_cron(cron_mod, monkeypatch, *, headers=None):
     captured = {}
     monkeypatch.setattr(cron_mod, "send_json",
                         lambda handler, status, data: captured.update(status=status, data=data))
-    fake = _FakeHandler(headers)
-    # bind do_GET to our fake instance
-    cron_mod.handler.do_GET(fake)
+    # "cron" is not org-scoped, so do_POST's org gate never opens a DB session.
+    cron_mod.handler.do_POST(_cron_handler(headers))
     return captured
 
 
@@ -448,8 +463,8 @@ def test_cron_fires_schedules_execution_disabled_by_default(monkeypatch):
     cron_mod = _load_cron_module()
     monkeypatch.delenv("CRON_SECRET", raising=False)
     monkeypatch.delenv("CRON_EXECUTE_CRAWLS", raising=False)
-    monkeypatch.setattr(cron_mod, "enqueue_due_crawls", lambda: [11, 12])
-    monkeypatch.setattr(cron_mod.cron_runner, "process_due",
+    monkeypatch.setattr(scheduler, "enqueue_due_crawls", lambda: [11, 12])
+    monkeypatch.setattr(cron_runner, "process_due",
                         lambda *a, **k: pytest.fail("execution must be OFF by default"))
 
     result = _run_cron(cron_mod, monkeypatch)
@@ -464,8 +479,8 @@ def test_cron_executes_when_flag_enabled(monkeypatch):
     cron_mod = _load_cron_module()
     monkeypatch.delenv("CRON_SECRET", raising=False)
     monkeypatch.setenv("CRON_EXECUTE_CRAWLS", "1")
-    monkeypatch.setattr(cron_mod, "enqueue_due_crawls", lambda: [5])
-    monkeypatch.setattr(cron_mod.cron_runner, "process_due",
+    monkeypatch.setattr(scheduler, "enqueue_due_crawls", lambda: [5])
+    monkeypatch.setattr(cron_runner, "process_due",
                         lambda *a, **k: {"enqueued": [], "ran": [5], "finished": [5]})
 
     result = _run_cron(cron_mod, monkeypatch)
@@ -479,7 +494,7 @@ def test_cron_executes_when_flag_enabled(monkeypatch):
 def test_cron_requires_secret_when_set(monkeypatch):
     cron_mod = _load_cron_module()
     monkeypatch.setenv("CRON_SECRET", "topsecret")
-    monkeypatch.setattr(cron_mod, "enqueue_due_crawls",
+    monkeypatch.setattr(scheduler, "enqueue_due_crawls",
                         lambda: pytest.fail("must not run without a valid secret"))
 
     # missing / wrong header -> 401
@@ -494,7 +509,7 @@ def test_cron_accepts_valid_secret(monkeypatch):
     cron_mod = _load_cron_module()
     monkeypatch.setenv("CRON_SECRET", "topsecret")
     monkeypatch.delenv("CRON_EXECUTE_CRAWLS", raising=False)
-    monkeypatch.setattr(cron_mod, "enqueue_due_crawls", lambda: [])
+    monkeypatch.setattr(scheduler, "enqueue_due_crawls", lambda: [])
 
     result = _run_cron(cron_mod, monkeypatch, headers={"Authorization": "Bearer topsecret"})
     assert result["status"] == 200

@@ -2,8 +2,9 @@
 
 // Public, read-only shared crawl report (M5 T5.2). Rendered without the app
 // chrome or auth gate (see components/AppShell.tsx isPublicRoute). The token in
-// the route IS the capability: everything here talks to the public /api/share
-// endpoint, which resolves the crawl by that token alone - no login, no crawlId.
+// the route IS the capability: everything here talks to the public share*
+// actions on /api/crawls, which resolve the crawl by that token alone - no
+// login, no crawlId.
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -80,9 +81,11 @@ function StatusDot({ color }: { color: string }) {
   return <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />;
 }
 
-/** POST to the public share endpoint. Never sends any auth - the token is it. */
+/** POST to the public share actions on /api/crawls. Never sends any auth - the
+ * token is the capability. (The share* actions live on /api/crawls so the app
+ * stays under the Hobby plan's 12-serverless-function cap.) */
 async function postShare<T>(body: Record<string, unknown>): Promise<{ ok: boolean; status: number; data: T }> {
-  const res = await fetch("/api/share", {
+  const res = await fetch("/api/crawls", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -133,7 +136,7 @@ function PagesCard({ token }: { token: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    postShare<PagesResponse>({ token, action: "pages", page, pageSize: PAGE_SIZE })
+    postShare<PagesResponse>({ token, action: "sharePages", page, pageSize: PAGE_SIZE })
       .then(({ ok, data }) => {
         if (cancelled) return;
         if (!ok) {
@@ -237,7 +240,7 @@ function IssuesCard({ token }: { token: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    postShare<IssuesResponse>({ token, action: "issues", severity: severity || undefined, page, pageSize: PAGE_SIZE })
+    postShare<IssuesResponse>({ token, action: "shareIssues", severity: severity || undefined, page, pageSize: PAGE_SIZE })
       .then(({ ok, data }) => {
         if (cancelled) return;
         if (!ok) {
@@ -342,10 +345,10 @@ function DownloadButtons({ token }: { token: string }) {
       setBusy(format);
       setError(null);
       try {
-        const res = await fetch("/api/share", {
+        const res = await fetch("/api/crawls", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token, action: "export", format }),
+          body: JSON.stringify({ token, action: "shareExport", format }),
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -401,7 +404,7 @@ export default function SharedReportPage() {
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
-    postShare<Summary & { error?: string }>({ token, action: "summary" })
+    postShare<Summary & { error?: string }>({ token, action: "shareSummary" })
       .then(({ ok, status, data }) => {
         if (cancelled) return;
         if (status === 404) {
