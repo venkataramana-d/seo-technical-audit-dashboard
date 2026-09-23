@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from modules._http import bulk_url_cap, read_json_body, require_str, send_json  # noqa: E402
 from sqlalchemy import func, select  # noqa: E402
 from worker.crawl_diff import compare_crawls, get_previous_completed_crawl, get_score_trend  # noqa: E402
+from worker.crawl_export import new_share_token  # noqa: E402
 from worker.crawl_service import create_crawl, finalize_crawl, persist_result, set_crawl_config_schedule  # noqa: E402
 from worker.db.models import Crawl, CrawlConfig, Issue, Link, Page, Project  # noqa: E402
 from worker.db.session import SessionLocal  # noqa: E402
@@ -32,7 +33,7 @@ from worker.auth import AuthError  # noqa: E402
 from worker.queue import enqueue  # noqa: E402
 
 # Actions that operate on a specific crawl id - gated by per-org ownership.
-_CRAWL_SCOPED = {"status", "thematic", "trend", "compare", "setSchedule", "pages", "issues", "links", "ingest", "finalize", "pause", "resume"}
+_CRAWL_SCOPED = {"status", "thematic", "trend", "compare", "setSchedule", "pages", "issues", "links", "ingest", "finalize", "pause", "resume", "setShare", "revokeShare"}
 # Actions that resolve an org (list/create derive scope from the session too).
 _ORG_SCOPED = {"list", "create"} | _CRAWL_SCOPED
 from worker.site_audit import get_thematic_report  # noqa: E402
@@ -576,6 +577,50 @@ def _handle_resume(handler, payload):
         send_json(handler, 500, {"error": "Internal error while resuming the crawl."})
 
 
+def _handle_set_share(handler, payload):
+    """Mint (or return the existing) public share token for a crawl (M5 T5.2).
+    Crawl-scoped: the do_POST org gate has already verified the caller's org
+    owns this crawl. Idempotent - re-sharing an already-shared crawl returns
+    the same token rather than rotating it."""
+    try:
+        crawl_id = _parse_crawl_id(handler, payload)
+        if crawl_id is None:
+            return
+        with SessionLocal() as db:
+            crawl = db.get(Crawl, crawl_id)
+            if crawl is None:
+                send_json(handler, 404, {"error": f"No crawl with id {crawl_id}"})
+                return
+            if crawl.share_token is None:
+                crawl.share_token = new_share_token()
+                db.commit()
+            send_json(handler, 200, {"shareToken": crawl.share_token})
+    except Exception:  # noqa: BLE001
+        logger.exception("crawls.py (setShare) request failed")
+        send_json(handler, 500, {"error": "Internal error while creating the share link."})
+
+
+def _handle_revoke_share(handler, payload):
+    """Revoke a crawl's public share token (M5 T5.2). Crawl-scoped: ownership
+    already verified by the do_POST org gate. Idempotent - revoking an
+    unshared crawl is a no-op that still returns ok."""
+    try:
+        crawl_id = _parse_crawl_id(handler, payload)
+        if crawl_id is None:
+            return
+        with SessionLocal() as db:
+            crawl = db.get(Crawl, crawl_id)
+            if crawl is None:
+                send_json(handler, 404, {"error": f"No crawl with id {crawl_id}"})
+                return
+            crawl.share_token = None
+            db.commit()
+            send_json(handler, 200, {"ok": True})
+    except Exception:  # noqa: BLE001
+        logger.exception("crawls.py (revokeShare) request failed")
+        send_json(handler, 500, {"error": "Internal error while revoking the share link."})
+
+
 _ACTIONS = {
     "list": _handle_list,
     "create": _handle_create,
@@ -591,6 +636,8 @@ _ACTIONS = {
     "setSchedule": _handle_set_schedule,
     "pause": _handle_pause,
     "resume": _handle_resume,
+    "setShare": _handle_set_share,
+    "revokeShare": _handle_revoke_share,
 }
 
 

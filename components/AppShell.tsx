@@ -36,7 +36,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const title = pageTitle(pathname);
   // Public, full-bleed routes that render without the app chrome and never
   // trigger the signed-out redirect (login + the emailed password-reset page).
-  const isPublicRoute = pathname === "/login" || pathname === "/reset";
+  const isPublicRoute = pathname === "/login" || pathname === "/reset" || pathname.startsWith("/share/");
 
   // Send signed-out users to the login screen - but only when the auth backend
   // is actually reachable. "unavailable" means the Python API isn't running

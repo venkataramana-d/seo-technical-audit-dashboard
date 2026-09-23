@@ -6,6 +6,13 @@
     "api/auth.py": { "maxDuration": 15 },
     "api/export.py": { "maxDuration": 30 },
     "api/crawls.py": { "maxDuration": 30 },
+    "api/crawl-export.py": { "maxDuration": 60 },
+    "api/share.py": { "maxDuration": 60 },
+    "api/insights.py": { "maxDuration": 30 },
+    "api/cron.py": { "maxDuration": 60 },
     "api/api-keys.py": { "maxDuration": 30 }
-  }
+  },
+  "crons": [
+    { "path": "/api/cron", "schedule": "0 3 * * *" }
+  ]
 }

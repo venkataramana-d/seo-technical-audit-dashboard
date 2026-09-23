@@ -1776,6 +1776,224 @@ function LinkScoreTable({ title, rows }: { title: string; rows: LinkScoreRow[] }
   );
 }
 
+// M5 T5.2 - Export + Share controls for the crawl detail header.
+type ExportFormat = "csv" | "xlsx" | "pdf" | "json";
+interface ShareTokenResponse {
+  shareToken: string;
+}
+interface RevokeShareResponse {
+  ok: boolean;
+}
+
+const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
+  { format: "csv", label: "CSV" },
+  { format: "xlsx", label: "Excel" },
+  { format: "pdf", label: "PDF" },
+  { format: "json", label: "JSON" },
+];
+
+// POST /api/crawl-export and download the returned binary attachment. Mirrors
+// lib/reportExport.ts::downloadResultsJson's object-URL + temp-anchor pattern,
+// but the payload comes from the server as a blob (not built client-side). On a
+// non-ok response the body is JSON {error}, so it's parsed for the message.
+async function downloadCrawlExport(crawlId: number, format: ExportFormat): Promise<void> {
+  const res = await fetch("/api/crawl-export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "export", crawlId, format }),
+  });
+  if (!res.ok) {
+    let message = "Export failed.";
+    try {
+      const data = (await res.json()) as { error?: string };
+      if (data.error) message = data.error;
+    } catch {
+      // Non-JSON error body - keep the default message.
+    }
+    throw new Error(message);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition");
+  const match = disposition ? /filename="?([^";]+)"?/.exec(disposition) : null;
+  const filename = match?.[1] ?? `crawl-${crawlId}-report.${format}`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ExportShareControls({ crawlId }: { crawlId: number }) {
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const exportRef = useRef<HTMLDivElement>(null);
+  const shareRef = useRef<HTMLDivElement>(null);
+
+  // Close either popover when clicking outside it.
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false);
+      if (shareRef.current && !shareRef.current.contains(e.target as Node)) setShareOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  async function handleExport(format: ExportFormat) {
+    setExportError(null);
+    setExportingFormat(format);
+    try {
+      await downloadCrawlExport(crawlId, format);
+      setExportOpen(false);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Export failed.");
+    } finally {
+      setExportingFormat(null);
+    }
+  }
+
+  async function handleShare() {
+    setShareError(null);
+    setShareBusy(true);
+    try {
+      // setShare is idempotent - re-clicking returns the same token.
+      const data = await postCrawlsAction<ShareTokenResponse>({ action: "setShare", crawlId });
+      setShareToken(data.shareToken);
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : "Failed to create share link.");
+    } finally {
+      setShareBusy(false);
+    }
+  }
+
+  async function handleRevoke() {
+    setShareError(null);
+    setShareBusy(true);
+    try {
+      await postCrawlsAction<RevokeShareResponse>({ action: "revokeShare", crawlId });
+      setShareToken(null);
+      setCopied(false);
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : "Failed to revoke share link.");
+    } finally {
+      setShareBusy(false);
+    }
+  }
+
+  // shareToken is null until the user creates a link post-hydration, so window
+  // is never touched during SSR (the ternary short-circuits).
+  const shareUrl = shareToken ? `${window.location.origin}/share/${shareToken}` : null;
+
+  async function copyShareUrl() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <>
+      <div ref={exportRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setExportOpen((o) => !o)}
+          disabled={exportingFormat !== null}
+          className="rounded-lg border border-[var(--seo-border)] px-3 py-1.5 text-sm font-medium text-[var(--seo-text)] hover:bg-[var(--seo-card-hover)] disabled:opacity-50"
+        >
+          {exportingFormat ? "Exporting…" : "Export ▾"}
+        </button>
+        {exportOpen ? (
+          <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] p-1 shadow-lg">
+            {EXPORT_FORMATS.map(({ format, label }) => (
+              <button
+                key={format}
+                type="button"
+                onClick={() => handleExport(format)}
+                disabled={exportingFormat !== null}
+                className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-sm text-[var(--seo-text)] hover:bg-[var(--seo-card-hover)] disabled:opacity-50"
+              >
+                {label}
+                {exportingFormat === format ? (
+                  <span className="text-xs text-[var(--seo-muted)]">…</span>
+                ) : null}
+              </button>
+            ))}
+            {exportError ? (
+              <p className="px-3 py-1.5 text-xs text-[var(--seo-error)]">{exportError}</p>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      <div ref={shareRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setShareOpen((o) => !o)}
+          className="rounded-lg border border-[var(--seo-border)] px-3 py-1.5 text-sm font-medium text-[var(--seo-text)] hover:bg-[var(--seo-card-hover)]"
+        >
+          Share report
+        </button>
+        {shareOpen ? (
+          <div className="absolute right-0 z-20 mt-1 w-72 rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] p-3 shadow-lg">
+            <h3 className="text-sm font-semibold text-[var(--seo-heading)]">Public share link</h3>
+            {!shareUrl ? (
+              <>
+                <p className="mt-1 text-xs text-[var(--seo-muted)]">
+                  Generate a public, read-only link to this crawl report.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  disabled={shareBusy}
+                  className="mt-2 w-full rounded-lg btn-gradient px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {shareBusy ? "Creating…" : "Create link"}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="mt-2 break-all rounded-md border border-[var(--seo-border)] bg-[var(--seo-card-hover)] px-2 py-1.5 font-mono text-xs text-[var(--seo-text)]">
+                  {shareUrl}
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={copyShareUrl}
+                    className="flex-1 rounded-lg border border-[var(--seo-border-strong)] px-3 py-1.5 text-sm font-medium text-[var(--seo-text)] hover:bg-[var(--seo-card-hover)]"
+                  >
+                    {copied ? "Copied!" : "Copy"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRevoke}
+                    disabled={shareBusy}
+                    className="flex-1 rounded-lg border border-[var(--seo-border)] px-3 py-1.5 text-sm font-medium text-[var(--seo-error)] hover:bg-[var(--seo-card-hover)] disabled:opacity-50"
+                  >
+                    {shareBusy ? "…" : "Revoke"}
+                  </button>
+                </div>
+              </>
+            )}
+            {shareError ? <p className="mt-2 text-xs text-[var(--seo-error)]">{shareError}</p> : null}
+          </div>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 function CrawlDetailInner() {
   const params = useParams();
   const router = useRouter();
@@ -1934,6 +2152,7 @@ function CrawlDetailInner() {
                 Resume
               </button>
             ) : null}
+            {status && status.status === "completed" ? <ExportShareControls crawlId={crawlId} /> : null}
             <button
               type="button"
               onClick={() => router.push("/site-crawls")}

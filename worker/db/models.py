@@ -177,6 +177,11 @@ class Crawl(Base):
     # from the crawl's Issue rows in finalize_crawl. Powers the theme-score trend
     # across crawls. NULL for crawls finalized before this column existed.
     theme_scores_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # M5 T5.2: opaque token for a public, read-only shared report link. NULL =
+    # not shared. Set/cleared via api/crawls.py (setShare/revokeShare); the
+    # public read path (api/share.py) looks a crawl up by this token, bypassing
+    # org scope, so the token IS the capability - it's long + unguessable.
+    share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
 
     project: Mapped["Project"] = relationship(back_populates="crawls")
     pages: Mapped[list["Page"]] = relationship(back_populates="crawl")

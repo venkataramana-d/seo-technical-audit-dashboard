@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 from modules.crawler import CrawlConfig as ModuleCrawlConfig
 from modules.crawler import normalize_url
-from worker.db.models import Crawl, CrawlConfig, Issue, Link, Organization, Page, Project
+from worker.db.models import Crawl, CrawlConfig, Issue, Link, Membership, Organization, Page, Project, User
 from worker.db.session import SessionLocal
 from worker.site_audit import run_site_audit
 
@@ -444,6 +444,81 @@ def _persist_theme_scores(db, crawl_id: int) -> None:
         logger.exception("theme-score persistence failed for crawl %s", crawl_id)
 
 
+def _resolve_org_owner_email(db, org_id: int) -> str | None:
+    """The email to send an org's regression alert to: the org's admin member,
+    falling back to any member. None if the org has no members with an email
+    (e.g. the seeded local-dev org, which has no users/memberships)."""
+    admin = db.execute(
+        select(User.email)
+        .join(Membership, Membership.user_id == User.id)
+        .where(Membership.org_id == org_id, Membership.role == "admin")
+        .order_by(User.id.asc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if admin:
+        return admin
+    return db.execute(
+        select(User.email)
+        .join(Membership, Membership.user_id == User.id)
+        .where(Membership.org_id == org_id)
+        .order_by(User.id.asc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def send_regression_alert(crawl_id: int) -> None:
+    """M5 T5.4 - email the org owner when a just-finalized crawl regressed vs.
+    the previous completed crawl of the same project. Best-effort: never raises
+    (email must never break crawl finalization).
+
+    A regression is "at least one new issue appeared, OR the health score
+    dropped". If nothing regressed - no new issues and health_score_delta is
+    None or >= 0 - no email is sent. Also silently no-ops when email isn't
+    configured (`email_enabled()` False) or there's no previous crawl to diff
+    against. email_send/crawl_diff are imported lazily so importing this module
+    stays cheap and side-effect-free.
+    """
+    try:
+        from worker.crawl_diff import compare_crawls, get_previous_completed_crawl
+        from worker.email_send import email_enabled, regression_alert_html, send_email
+
+        if not email_enabled():
+            return
+
+        prev = get_previous_completed_crawl(crawl_id)
+        if prev is None:
+            return  # nothing to compare against (first completed crawl)
+
+        diff = compare_crawls(prev.id, crawl_id)
+        new_issues = diff.get("new_issues") or []
+        health_delta = diff.get("health_score_delta")
+        if not new_issues and (health_delta is None or health_delta >= 0):
+            return  # nothing got worse
+
+        with SessionLocal() as db:
+            crawl = db.get(Crawl, crawl_id)
+            if crawl is None:
+                return
+            project = db.get(Project, crawl.project_id)
+            if project is None:
+                return
+            root_url = project.root_url
+            owner_email = _resolve_org_owner_email(db, project.org_id)
+
+        if not owner_email:
+            logger.info("regression alert for crawl %s skipped: no org owner email", crawl_id)
+            return
+
+        subject = f"SEO regression detected: {root_url}"
+        result = send_email(owner_email, subject, regression_alert_html(root_url, diff))
+        if result.get("ok"):
+            logger.info("regression alert for crawl %s sent to %s", crawl_id, owner_email)
+        else:
+            logger.warning("regression alert for crawl %s not sent: %s", crawl_id, result.get("error"))
+    except Exception:  # noqa: BLE001 - alerting is best-effort, never fatal
+        logger.exception("send_regression_alert failed for crawl %s", crawl_id)
+
+
 def finalize_crawl(crawl_id: int, status: str) -> None:
     """Runs the Phase 2 post-crawl aggregation pass (only on success - a
     failed crawl's partial data isn't a meaningful basis for sitewide
@@ -494,3 +569,13 @@ def finalize_crawl(crawl_id: int, status: str) -> None:
         crawl.status = status
         crawl.finished_at = datetime.now(timezone.utc)
         db.commit()
+
+    # Regression-alert hook (M5 T5.4): only for successful crawls, and wrapped
+    # so any failure is swallowed - email must never break finalization. This
+    # covers BOTH the browser finalize path (worker/tasks.py) and the cron
+    # executor (worker/cron_runner.py), since both funnel through here.
+    if status == "completed":
+        try:
+            send_regression_alert(crawl_id)
+        except Exception:  # noqa: BLE001
+            logger.exception("regression alert hook failed for crawl %s", crawl_id)

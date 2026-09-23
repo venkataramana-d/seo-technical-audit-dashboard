@@ -17,8 +17,8 @@ interface VaultKey {
 const VAULT_PROVIDERS: { id: string; label: string; testable: boolean }[] = [
   { id: "psi", label: "PageSpeed Insights", testable: true },
   { id: "groq", label: "Groq (AI Summary)", testable: true },
-  { id: "gsc", label: "Google Search Console", testable: false },
-  { id: "ga4", label: "Google Analytics 4", testable: false },
+  // gsc / ga4 are configured through their own "Connect" cards below (they take
+  // a service-account JSON + site URL / property ID, not a single raw key).
   { id: "openai", label: "OpenAI", testable: false },
   { id: "anthropic", label: "Anthropic", testable: false },
   { id: "gemini", label: "Gemini", testable: false },
@@ -179,6 +179,153 @@ function VaultAdminOnlyNotice() {
         Shared provider API keys (PageSpeed, Groq, etc.) are managed by your workspace
         admin. Ask an admin if a provider needs to be added or updated.
       </p>
+    </Card>
+  );
+}
+
+function GoogleIntegrationCard({
+  provider,
+  title,
+  secondLabel,
+  secondPlaceholder,
+  secondKey,
+  accessHelper,
+}: {
+  provider: "gsc" | "ga4";
+  title: string;
+  secondLabel: string;
+  secondPlaceholder: string;
+  secondKey: "site_url" | "property_id";
+  accessHelper: string;
+}) {
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [saJson, setSaJson] = useState("");
+  const [secondVal, setSecondVal] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function loadStatus() {
+    try {
+      const res = await fetch("/api/api-keys");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load status.");
+      setConfigured((data.apiKeys || []).some((k: VaultKey) => k.provider === provider));
+    } catch {
+      setConfigured(null);
+    }
+  }
+
+  useEffect(() => {
+    loadStatus();
+  }, []);
+
+  async function save() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(saJson);
+      } catch {
+        throw new Error("The service account field must be valid JSON - paste the whole key file.");
+      }
+      if (!secondVal.trim()) {
+        throw new Error(`${secondLabel} is required.`);
+      }
+      const wrapper = JSON.stringify({ service_account: parsed, [secondKey]: secondVal.trim() });
+      await postApiKeysAction({ action: "set", provider, value: wrapper });
+      setSaJson("");
+      setSecondVal("");
+      setMsg({ ok: true, text: "Connected." });
+      await loadStatus();
+    } catch (err) {
+      setMsg({ ok: false, text: err instanceof Error ? err.message : "Failed to connect." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disconnect() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await postApiKeysAction({ action: "delete", provider });
+      setMsg({ ok: true, text: "Disconnected." });
+      await loadStatus();
+    } catch (err) {
+      setMsg({ ok: false, text: err instanceof Error ? err.message : "Failed to disconnect." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inputCls =
+    "w-full rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-2 text-sm text-[var(--seo-text)] outline-none focus:border-[var(--seo-accent)]";
+
+  return (
+    <Card className="mb-4">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-[var(--seo-subheading)]">{title}</h3>
+        <span
+          className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+          style={{
+            color: configured ? "var(--seo-success)" : "var(--seo-warning)",
+            backgroundColor: configured ? "var(--seo-success-bg)" : "var(--seo-warning-bg)",
+          }}
+        >
+          {configured === null ? "Checking…" : configured ? "Connected" : "Not connected"}
+        </span>
+      </div>
+      <p className="mb-3 text-sm text-[var(--seo-text-light)]">{accessHelper}</p>
+      <div className="flex flex-col gap-2.5">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-[var(--seo-muted)]">
+            Service account JSON key
+          </label>
+          <textarea
+            value={saJson}
+            onChange={(e) => setSaJson(e.target.value)}
+            placeholder='{ "type": "service_account", "client_email": "...", "private_key": "-----BEGIN PRIVATE KEY-----\n..." }'
+            rows={5}
+            className={`${inputCls} font-mono text-xs`}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-[var(--seo-muted)]">{secondLabel}</label>
+          <input
+            type="text"
+            value={secondVal}
+            onChange={(e) => setSecondVal(e.target.value)}
+            placeholder={secondPlaceholder}
+            className={inputCls}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={save}
+            disabled={busy || !saJson.trim() || !secondVal.trim()}
+            className="rounded-lg btn-gradient px-4 py-2 text-[13.5px] font-semibold text-white transition disabled:opacity-50"
+          >
+            {busy ? "Saving…" : configured ? "Reconnect" : "Connect"}
+          </button>
+          {configured ? (
+            <button
+              type="button"
+              onClick={disconnect}
+              disabled={busy}
+              className="rounded-lg border border-[var(--seo-error-border)] px-3 py-2 text-[13.5px] font-medium text-[var(--seo-error)] hover:bg-[var(--seo-error-bg)] disabled:opacity-60"
+            >
+              Disconnect
+            </button>
+          ) : null}
+        </div>
+        {msg ? (
+          <p className={`text-[13px] ${msg.ok ? "text-[var(--seo-accent)]" : "text-[var(--seo-error)]"}`}>
+            {msg.text}
+          </p>
+        ) : null}
+      </div>
     </Card>
   );
 }
@@ -421,6 +568,27 @@ export default function SettingsPage() {
       </Card>
 
       {canManageVault ? <ApiKeyVaultCard /> : <VaultAdminOnlyNotice />}
+
+      {canManageVault ? (
+        <>
+          <GoogleIntegrationCard
+            provider="gsc"
+            title="Google Search Console"
+            secondLabel="Property URL"
+            secondPlaceholder="https://example.com/ (or sc-domain:example.com)"
+            secondKey="site_url"
+            accessHelper="Create a Google Cloud service account, enable the Search Console API, and grant its client_email access to your GSC property (Viewer), then paste its JSON key here."
+          />
+          <GoogleIntegrationCard
+            provider="ga4"
+            title="Google Analytics 4"
+            secondLabel="Property ID"
+            secondPlaceholder="123456789"
+            secondKey="property_id"
+            accessHelper="Create a Google Cloud service account, enable the Analytics Data API, and grant its client_email access to your GA4 property (Viewer), then paste its JSON key here."
+          />
+        </>
+      ) : null}
 
       <Card>
         <h3 className="mb-2 text-sm font-semibold text-[var(--seo-subheading)]">

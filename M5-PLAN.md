@@ -3,38 +3,67 @@
 > Companion to [BUILD-PLAN.md](BUILD-PLAN.md). Constraint: no always-on worker
 > (Railway skipped); crawls are browser-orchestrated + persisted to Neon.
 
-## Build order (research-driven)
+## Status: COMPLETE (all tasks shipped or code-complete)
 
-### Tier 1 — buildable now, no infra, no new dependency
-1. **T5.3 Internal link-graph visualization** — ✅ **DONE.** New `link-graph`
-   action in `api/analyze.py` returns the top-60 pages by Link Score + the
-   internal edges among them (from persisted `Page.depth/link_score/inlinks/
-   outlinks`). `components/detail/CrawlGraph.tsx` renders a dependency-free SVG
-   node-link graph laid out in columns by crawl depth, nodes sized/colored by
-   Link Score, in the Site-wide tab. (A force-directed layout would need a new
-   frontend dep — the depth-layered "crawl tree" gives the same insight without one.)
-2. **T5.2 Site-crawl PDF/Excel export** — the generators exist
-   (`report_generator.py`); needs an export path reading crawl rows from Neon.
-3. **T5.2 Shareable report links** — add a `Crawl.share_token` (+migration), a
-   public token-gated read endpoint bypassing org-scope, and a public route in
-   AppShell.
-4. **T5.4 (scheduling half)** — a Vercel Cron hitting an enqueue endpoint can
-   FIRE due schedules, but see the blocker below.
+| Task | State | Notes |
+|------|-------|-------|
+| T5.3 Internal link-graph viz | ✅ Done | `link-graph` action + `CrawlGraph.tsx` |
+| T5.2 Crawl PDF/Excel/CSV/JSON export | ✅ Done | server-side, from Neon rows |
+| T5.2 Shareable report links | ✅ Done | public `/share/<token>` |
+| T5.4 Scheduled re-crawls (firing) | ✅ Done | Vercel Cron → `enqueue_due_crawls` |
+| T5.4 Regression-alert emails | ✅ Done | on finalize, best-effort |
+| T5.4 Unattended crawl execution | ✅ Done (opt-in) | `CRON_EXECUTE_CRAWLS`, resumable chunks |
+| T5.1 GSC + GA4 | ✅ Code-complete | activates when user connects Google |
 
-### Needs a new frontend dependency
-5. **T5.3 force-directed graph** — `d3-force`/`react-force-graph` (or a hand-rolled
-   SVG force sim) for a physics layout, on top of the `link-graph` endpoint.
+## What shipped
 
-### Blocked / needs infra
-6. **T5.4 scheduled re-crawls + regression alerts** — the scheduler
-   (`enqueue_due_crawls`), diff engine (`compare_crawls`) and email
-   (`email_send`) all exist, but unattended crawls have **no executor** without
-   the always-on worker (browser-orchestrated only). A cron can enqueue; running
-   the crawl needs the worker (skipped) or a server-side executor.
-7. **T5.1 GSC + GA4 joins** / Google Sheets export — need user-provisioned Google
-   Cloud + OAuth 2.0 (consent screen, refresh tokens) and a vault schema for
-   OAuth token sets. Highest external cost; user-infra heavy.
+### T5.2 — Crawl export (`api/crawl-export.py`, `worker/crawl_export.py`)
+`worker/crawl_export.py` reconstructs the per-page `AuditResult`-shaped dicts
+that `modules/report_generator.py` already consumes, from the crawl's persisted
+Page/Issue/Link rows — so the exact same CSV/Excel/PDF generators produce a
+crawl report (no second reporting path). `api/crawl-export.py` is org-scoped
+(same gate as `api/crawls.py`). UI: an **Export ▾** dropdown (CSV/Excel/PDF/JSON)
+in the crawl-detail header, gated on a completed crawl.
 
-## Status
-T5.3 shipped. T5.2 (crawl export + share links) is the next no-infra work.
-T5.4/T5.1 need the worker / Google OAuth respectively.
+### T5.2 — Shareable links (`api/share.py`, `Crawl.share_token`)
+`setShare`/`revokeShare` actions on `api/crawls.py` mint/clear an unguessable
+`Crawl.share_token` (migration `b1c2d3e4f5a6`). `api/share.py` is a **public,
+no-auth** read path — the token is the only capability, resolved bypassing
+org-scope; supports summary/pages/issues/export. `/share/[token]` is a
+read-only page (added to `AppShell` public routes). A **Share report** popover
+in the crawl header creates/copies/revokes the link.
+
+### T5.4 — Scheduling, executor, alerts (`api/cron.py`, `worker/cron_runner.py`)
+- **On by default:** `GET /api/cron` (daily Vercel Cron in `vercel.json`) calls
+  `enqueue_due_crawls()` to FIRE due schedules; regression-alert emails after
+  any crawl finalizes completed (`send_regression_alert` in `finalize_crawl`,
+  best-effort, needs an email backend + a prior completed crawl to diff).
+- **Opt-in:** `CRON_EXECUTE_CRAWLS=1` enables `cron_runner.process_due()` — a
+  resumable, time-bounded server-side executor that runs scheduled crawls in
+  chunks across ticks (via `load_resume_state` + `CrawlConfig.max_seconds`).
+  Anti-hijack: only claims crawls with `schedule_cron` set, `status=='queued'`,
+  `started_at IS NULL` (atomic conditional UPDATE) or `paused` scheduled crawls
+  — never browser-orchestrated running crawls. Env: `CRON_SECRET` guards the
+  endpoint. This is the no-Railway substitute for the skipped always-on worker;
+  cadence/size are bounded by Vercel's cron frequency + function time limit.
+
+### T5.1 — GSC + GA4 (`modules/google_integrations.py`, `api/insights.py`)
+Service-account model (no OAuth consent screen), using only `requests` +
+`cryptography` (RS256 JWT-bearer token exchange) — no new dependency. GSC
+Search Analytics + GA4 `runReport`, joined onto crawl page URLs. Credentials
+stored in the existing encrypted vault (providers `gsc`/`ga4`) as a wrapper
+JSON `{service_account, site_url|property_id}`, saved from two **Settings**
+connect cards. `api/insights.py` (`status`/`gsc`/`ga4`) returns a friendly
+not-connected state until configured.
+
+**The one external step (user-provided infra):** create a Google Cloud service
+account, enable the Search Console API / Analytics Data API, grant its
+`client_email` Viewer access to the GSC property / GA4 property, and paste the
+JSON key + site URL / property ID into Settings. Until then GSC/GA4 return the
+not-connected state; all other M5 features work with no external setup.
+
+## Deploy notes
+- Migration `b1c2d3e4f5a6` (crawls.share_token) must be applied to Neon
+  **before** deploying the code that reads it (share links).
+- New env (all optional): `CRON_SECRET`, `CRON_EXECUTE_CRAWLS`. GSC/GA4 need
+  no env — they use the vault (`VAULT_ENCRYPTION_KEY` already set).
