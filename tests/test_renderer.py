@@ -37,3 +37,12 @@ def test_render_page_returns_failure_shape_on_bad_url():
     assert result["success"] is False
     assert "error" in result
     assert result["status_code"] == 0
+
+
+def test_render_page_blocks_ssrf_url_without_launching_browser():
+    # A private/metadata host is rejected up front (SSRF), before any browser
+    # launch or network call. http(s)-only; inert schemes (data:) are unaffected.
+    for bad in ("http://169.254.169.254/latest/meta-data/", "http://127.0.0.1/", "http://localhost/"):
+        result = render_page(bad, timeout_ms=2000)
+        assert result["success"] is False, bad
+        assert result["status_code"] == 0

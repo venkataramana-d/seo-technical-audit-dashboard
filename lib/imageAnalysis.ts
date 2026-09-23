@@ -65,7 +65,10 @@ export const ALT_STATUS_LABEL: Record<ImageEntry["alt_status"], string> = {
 export interface ImageIssueExplanation {
   issueName: string;
   status: StatusColor;
-  severity: "Critical" | "High" | "Medium" | "Low";
+  // Widened to include "Notice"/"Warning" so per-image severities stay in
+  // lockstep with modules/image_auditor.py, which emits those two bands too
+  // (Notice = missing lazy loading; Warning = keyword-stuffed alt / large file).
+  severity: "Critical" | "High" | "Medium" | "Low" | "Notice" | "Warning";
   whatIsIt: string;
   whyImportant: string;
   seoImpact: string;
@@ -95,7 +98,7 @@ export function explainImageIssue(issue: string, img: ImageEntry): ImageIssueExp
       return {
         issueName: "Empty Alt Text",
         status: "warning",
-        severity: "Medium",
+        severity: "Low",
         whatIsIt: `"${name}" has alt="" (valid only if the image is purely decorative).`,
         whyImportant: "An empty alt is the correct choice for decorative images, but if this image conveys real content, it's being skipped entirely by screen readers and search engines.",
         seoImpact: "No SEO value from this image; correct if decorative, a missed opportunity if not.",
@@ -119,7 +122,7 @@ export function explainImageIssue(issue: string, img: ImageEntry): ImageIssueExp
       return {
         issueName: "Keyword-Stuffed Alt Text",
         status: "warning",
-        severity: "Medium",
+        severity: "Warning",
         whatIsIt: `"${name}"'s alt text is unnaturally long or repeats the same word many times.`,
         whyImportant: "Search engines treat over-optimized alt text as a manipulation signal, which can hurt rather than help rankings.",
         seoImpact: "Risk of being flagged as a spam/manipulation signal by search engines.",
@@ -130,7 +133,7 @@ export function explainImageIssue(issue: string, img: ImageEntry): ImageIssueExp
       return {
         issueName: "Missing Lazy Loading",
         status: "info",
-        severity: "Low",
+        severity: "Notice",
         whatIsIt: `"${name}" doesn't use loading="lazy".`,
         whyImportant: "Below-the-fold images without lazy loading are downloaded immediately, competing for bandwidth with content the visitor actually sees first.",
         seoImpact: "Slower page load can affect Core Web Vitals (particularly on image-heavy pages), which is a ranking factor.",
@@ -188,7 +191,7 @@ export function explainImageIssue(issue: string, img: ImageEntry): ImageIssueExp
       return {
         issueName: "Large File Size",
         status: "warning",
-        severity: "Medium",
+        severity: "Warning",
         whatIsIt: `"${name}" is ${formatBytes(img.file_size_bytes)}, above the 300KB guideline for web images.`,
         whyImportant: "Large images are consistently the biggest cause of slow page loads on content-heavy pages.",
         seoImpact: "Directly slows LCP and overall page weight, both of which affect Core Web Vitals and rankings.",

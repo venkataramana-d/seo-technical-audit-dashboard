@@ -76,6 +76,15 @@ type AltFilter = "all" | ImageEntry["alt_status"];
 type FormatFilter = "all" | string;
 type ImageSort = "priority" | "file_size_bytes" | "name";
 
+// Stable per-image identity for row selection, so a checked row stays tied to
+// its data across filtering / sorting instead of to a positional array index
+// (which points at whatever image currently sits there). sourceUrl + url
+// disambiguates the same src reused across audited pages, since flattenImages
+// merges every page's images into one list where url alone can collide.
+function imageKey(img: ImageEntry): string {
+  return img.sourceUrl ? `${img.sourceUrl}\n${img.url}` : img.url;
+}
+
 function cwvColor(status: string) {
   if (status === "pass") return { text: "var(--cwv-good-text)", bg: "var(--cwv-good-bg)" };
   if (status === "warning") return { text: "var(--cwv-needs-text)", bg: "var(--cwv-needs-bg)" };
@@ -532,7 +541,7 @@ export function ImageSeoTab({
   const [brokenOnly, setBrokenOnly] = useState(false);
   const [sort, setSort] = useState<{ key: ImageSort; dir: 1 | -1 }>({ key: "priority", dir: -1 });
   const [expanded, setExpanded] = useState<number | null>(null);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   // Jump-to-element: clear the filters so the focused image isn't hidden, then
   // scroll to + highlight its row. Image srcs can be stored relative in one
@@ -551,6 +560,7 @@ export function ImageSeoTab({
       setLcpOnly(false);
       setIssueOnly(false);
       setBrokenOnly(false);
+      setSelected(new Set());
       setTimeout(() => locateAndHighlight(containerRef.current, focusValue, { fuzzy: true }), 90);
     }, 0);
     return () => clearTimeout(t);
@@ -611,29 +621,37 @@ export function ImageSeoTab({
     return arr;
   }, [filtered, sort]);
 
+  // The rows actually rendered: sorted, then capped at 200 (the table only ever
+  // renders sorted.slice(0, 200)). "Select all" and the header checkbox operate
+  // on exactly these so the user can never select hidden rows they can't uncheck.
+  const rendered = useMemo(() => sorted.slice(0, 200), [sorted]);
+
   function toggleSort(key: ImageSort) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: -1 }));
+    setSelected(new Set());
   }
 
-  function toggleSelect(i: number) {
+  function toggleSelect(key: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
 
+  const allRenderedSelected = rendered.length > 0 && rendered.every((img) => selected.has(imageKey(img)));
+
   function toggleSelectAll() {
-    if (selected.size === sorted.length && sorted.length > 0) setSelected(new Set());
-    else setSelected(new Set(sorted.map((_, i) => i)));
+    if (allRenderedSelected) setSelected(new Set());
+    else setSelected(new Set(rendered.map(imageKey)));
   }
 
   function downloadView() {
     const rows: string[][] = [
       ["Name", "Source Page", "Format", "Alt Status", "Alt Text", "Dimensions", "Lazy", "File Size", "Broken", "LCP Candidate", "Issues"],
     ];
-    const subset = selected.size > 0 ? sorted.filter((_, i) => selected.has(i)) : sorted;
+    const subset = selected.size > 0 ? sorted.filter((img) => selected.has(imageKey(img))) : sorted;
     for (const img of subset) {
       rows.push([
         img.name,
@@ -660,13 +678,19 @@ export function ImageSeoTab({
           label="Missing Alt Text"
           value={missingAlt}
           tint={issueCountColors(missingAlt)}
-          onClick={() => setAltFilter("missing")}
+          onClick={() => {
+            setAltFilter("missing");
+            setSelected(new Set());
+          }}
         />
         <TintedMetricCard
           label="Large Images (>300KB)"
           value={largeImages}
           tint={issueCountColors(largeImages)}
-          onClick={() => setIssueOnly(true)}
+          onClick={() => {
+            setIssueOnly(true);
+            setSelected(new Set());
+          }}
         />
         <TintedMetricCard label="Missing Lazy Load" value={noLazy} tint={issueCountColors(noLazy)} />
         <TintedMetricCard label="Duplicate Alt Text" value={duplicateAlt} tint={issueCountColors(duplicateAlt)} />
@@ -679,7 +703,10 @@ export function ImageSeoTab({
           label="Broken Images"
           value={brokenImages}
           tint={issueCountColors(brokenImages)}
-          onClick={() => setBrokenOnly(true)}
+          onClick={() => {
+            setBrokenOnly(true);
+            setSelected(new Set());
+          }}
         />
       </div>
 
@@ -724,7 +751,10 @@ export function ImageSeoTab({
         <div className="flex flex-wrap items-center gap-3">
           <select
             value={altFilter}
-            onChange={(e) => setAltFilter(e.target.value as AltFilter)}
+            onChange={(e) => {
+              setAltFilter(e.target.value as AltFilter);
+              setSelected(new Set());
+            }}
             className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
             <option value="all">All alt statuses</option>
@@ -734,7 +764,10 @@ export function ImageSeoTab({
           </select>
           <select
             value={formatFilter}
-            onChange={(e) => setFormatFilter(e.target.value)}
+            onChange={(e) => {
+              setFormatFilter(e.target.value);
+              setSelected(new Set());
+            }}
             className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
             <option value="all">All formats</option>
@@ -743,15 +776,15 @@ export function ImageSeoTab({
             ))}
           </select>
           <label className="flex items-center gap-1.5 text-xs text-[var(--seo-text-light)]">
-            <input type="checkbox" checked={lcpOnly} onChange={(e) => setLcpOnly(e.target.checked)} />
+            <input type="checkbox" checked={lcpOnly} onChange={(e) => { setLcpOnly(e.target.checked); setSelected(new Set()); }} />
             LCP candidate only
           </label>
           <label className="flex items-center gap-1.5 text-xs text-[var(--seo-text-light)]">
-            <input type="checkbox" checked={issueOnly} onChange={(e) => setIssueOnly(e.target.checked)} />
+            <input type="checkbox" checked={issueOnly} onChange={(e) => { setIssueOnly(e.target.checked); setSelected(new Set()); }} />
             Has issues only
           </label>
           <label className="flex items-center gap-1.5 text-xs text-[var(--seo-text-light)]">
-            <input type="checkbox" checked={brokenOnly} onChange={(e) => setBrokenOnly(e.target.checked)} />
+            <input type="checkbox" checked={brokenOnly} onChange={(e) => { setBrokenOnly(e.target.checked); setSelected(new Set()); }} />
             Broken only
           </label>
           <span className="text-xs text-[var(--seo-muted)]">{sorted.length} image(s)</span>
@@ -769,7 +802,7 @@ export function ImageSeoTab({
           <thead>
             <tr className="border-b border-[var(--seo-border)] bg-[var(--table-header-bg)] text-left text-xs uppercase tracking-wide text-[var(--seo-muted)]">
               <th className="px-3 py-3">
-                <input type="checkbox" checked={selected.size > 0 && selected.size === sorted.length} onChange={toggleSelectAll} />
+                <input type="checkbox" checked={allRenderedSelected} onChange={toggleSelectAll} />
               </th>
               <th className="px-4 py-3">Preview</th>
               <th className="cursor-pointer px-4 py-3" onClick={() => toggleSort("name")}>
@@ -789,14 +822,15 @@ export function ImageSeoTab({
             </tr>
           </thead>
           <tbody>
-            {sorted.slice(0, 200).map((img, i) => {
+            {rendered.map((img, i) => {
               const isExpanded = expanded === i;
               const explanations = img.issues.map((iss) => explainImageIssue(iss, img)).filter(Boolean);
+              const key = imageKey(img);
               return (
                 <Fragment key={i}>
                   <tr className="border-b border-[var(--table-row-border)]" data-locate-value={img.url}>
                     <td className="px-3 py-3">
-                      <input type="checkbox" checked={selected.has(i)} onChange={() => toggleSelect(i)} />
+                      <input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelect(key)} />
                     </td>
                     <td className="px-4 py-3">
                       {img.url ? (

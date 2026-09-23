@@ -5,11 +5,12 @@ into `audit_url(prefetched=...)` unchanged - the whole per-page audit
 pipeline doesn't need to know whether its input came from `requests` or a
 real browser.
 
-No SSRF self-validation here, matching `fetch_page()`'s own precedent:
-validation happens once at the seed/sitemap level (`validate_audit_url()`
-in modules/auditor.py), and individual page URLs reaching this function are
-already domain-scoped by the crawler's `_in_scope()` check before being
-queued - a peer fetch function doesn't re-validate per call.
+SSRF: the initial URL is validated with `validate_audit_url()`, and a route
+guard aborts any main-frame navigation (i.e. a redirect) to a blocked
+private/loopback/link-local/metadata host - the browser equivalent of the
+requests path's per-hop re-validation in `safe_request()`. Subresource requests
+(images/css/js) are left to the browser; only navigations can exfiltrate an
+internal page's HTML into the audit, which is the SSRF vector that matters here.
 
 Each call is fully self-contained (its own browser launch/close) rather
 than reusing one instance across a thread - Playwright's sync API ties a
@@ -27,16 +28,46 @@ import time
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
+from modules.auditor import validate_audit_url
+
 DEFAULT_TIMEOUT_MS = 5000
+
+
+def _nav_allowed(u: str) -> bool:
+    """SSRF gate for a navigation URL. Only http(s) URLs reach a network host, so
+    inert schemes (data:/about:/blob:) are always allowed; http(s) URLs must pass
+    validate_audit_url (blocks private/loopback/link-local/metadata hosts)."""
+    low = (u or "").strip().lower()
+    if not (low.startswith("http://") or low.startswith("https://")):
+        return True
+    ok, _ = validate_audit_url(u)
+    return ok
 
 
 def render_page(url: str, timeout_ms: int = DEFAULT_TIMEOUT_MS) -> dict:
     started = time.monotonic()
+    # Block the initial URL up front (SSRF), same as the requests path.
+    if not _nav_allowed(url):
+        return {"success": False, "error": "Render blocked: URL failed SSRF validation.", "status_code": 0}
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
             try:
                 page = browser.new_page()
+
+                # Re-validate every main-frame navigation (i.e. a redirect target)
+                # and abort it if it resolves to a private/metadata host - the
+                # browser analogue of safe_request()'s per-hop check. Subresources
+                # are not validated (perf; they can't leak an internal page's HTML
+                # into the audit result).
+                def _guard(route):
+                    req = route.request
+                    if req.resource_type == "document" and not _nav_allowed(req.url):
+                        route.abort()
+                        return
+                    route.continue_()
+
+                page.route("**/*", _guard)
                 # networkidle: wait for no network activity for 500ms, so
                 # client-rendered content (fetch/XHR-driven) has a chance to
                 # land before we read the DOM. A page that never goes idle

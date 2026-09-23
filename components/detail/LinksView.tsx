@@ -54,6 +54,15 @@ function cardTint(color: string): CSSProperties {
 
 const PAGE_SIZE = 50;
 
+// Stable per-link identity used to track row selection, so a checked row stays
+// tied to its data across pagination / filtering / sorting instead of to a
+// positional array index (which points at whatever row currently sits there).
+// sourceUrl + url disambiguates the same target linked from multiple pages;
+// url alone is the fallback when sourceUrl is absent.
+function linkKey(l: LinkEntry): string {
+  return l.sourceUrl ? `${l.sourceUrl}\n${l.url}` : l.url;
+}
+
 type HealthFilter = "all" | "ok" | "broken" | "redirect";
 type FollowFilter = "all" | "dofollow" | "nofollow";
 type CategoryFilter = "all" | "page" | "pdf" | "download" | "image";
@@ -551,7 +560,7 @@ function LinkTable({
   const [showDetails, setShowDetails] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "priority", dir: -1 });
   const [page, setPage] = useState(0);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [activeLink, setActiveLink] = useState<
     (LinkEntry & { __kind: "internal" | "external"; __priority: number }) | null
   >(null);
@@ -576,6 +585,7 @@ function LinkTable({
       setLocationFilter("all");
       setStatusFilter("all");
       setPage(0);
+      setSelected(new Set());
       // Let React re-render the filtered rows, then reveal the match.
       setTimeout(() => locateAndHighlight(containerRef.current, focusValue), 90);
     }, 0);
@@ -645,26 +655,31 @@ function LinkTable({
 
   function toggleSort(key: SortKey) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: -1 }));
+    setSelected(new Set());
   }
 
+  // "Select all" acts only on the rows currently rendered (this page, after the
+  // active filter + sort), never on hidden rows the user can't see to uncheck.
+  const allPageSelected = pageLinks.length > 0 && pageLinks.every((l) => selected.has(linkKey(l)));
+
   function toggleSelectAll() {
-    if (selected.size === pageLinks.length && pageLinks.length > 0) {
+    if (allPageSelected) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(pageLinks.map((_, i) => i)));
+      setSelected(new Set(pageLinks.map(linkKey)));
     }
   }
 
-  function toggleSelect(i: number) {
+  function toggleSelect(key: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
 
-  const selectedLinks = pageLinks.filter((_, i) => selected.has(i));
+  const selectedLinks = pageLinks.filter((l) => selected.has(linkKey(l)));
 
   function linksToCsvRows(subset: typeof sorted) {
     const rows: string[][] = [
@@ -714,6 +729,7 @@ function LinkTable({
             onChange={(e) => {
               setSearch(e.target.value);
               setPage(0);
+              setSelected(new Set());
             }}
             className="min-w-[220px] flex-1 rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           />
@@ -722,6 +738,7 @@ function LinkTable({
             onChange={(e) => {
               setTypeFilter(e.target.value as TypeFilter);
               setPage(0);
+              setSelected(new Set());
             }}
             className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
@@ -734,6 +751,7 @@ function LinkTable({
             onChange={(e) => {
               setFollowFilter(e.target.value as FollowFilter);
               setPage(0);
+              setSelected(new Set());
             }}
             className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
@@ -746,6 +764,7 @@ function LinkTable({
             onChange={(e) => {
               setHealthFilter(e.target.value as HealthFilter);
               setPage(0);
+              setSelected(new Set());
             }}
             className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
@@ -759,6 +778,7 @@ function LinkTable({
             onChange={(e) => {
               setCategoryFilter(e.target.value as CategoryFilter);
               setPage(0);
+              setSelected(new Set());
             }}
             className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
@@ -773,6 +793,7 @@ function LinkTable({
             onChange={(e) => {
               setLocationFilter(e.target.value as LocationFilter);
               setPage(0);
+              setSelected(new Set());
             }}
             className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
           >
@@ -790,6 +811,7 @@ function LinkTable({
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setPage(0);
+                setSelected(new Set());
               }}
               className="rounded-lg border border-[var(--seo-border-strong)] bg-[var(--seo-card-bg)] px-3 py-1.5 text-sm text-[var(--seo-text)]"
             >
@@ -837,7 +859,7 @@ function LinkTable({
               <th className="px-3 py-3">
                 <input
                   type="checkbox"
-                  checked={selected.size > 0 && selected.size === pageLinks.length}
+                  checked={allPageSelected}
                   onChange={toggleSelectAll}
                 />
               </th>
@@ -872,6 +894,7 @@ function LinkTable({
             {pageLinks.map((l, i) => {
               const secGap = l.opens_new_tab && (!l.has_noopener || !l.has_noreferrer);
               const rowColor = healthColorFor(l);
+              const key = linkKey(l);
               return (
                 <tr
                   key={i}
@@ -881,7 +904,7 @@ function LinkTable({
                   style={{ backgroundColor: `${rowColor}0d`, borderLeft: `3px solid ${rowColor}` }}
                 >
                   <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" checked={selected.has(i)} onChange={() => toggleSelect(i)} />
+                    <input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelect(key)} />
                   </td>
                   <td className="max-w-xs truncate px-4 py-3 text-[var(--seo-subheading)]">{l.url}</td>
                   <td className="px-4 py-3 capitalize">{l.__kind}</td>
@@ -968,7 +991,10 @@ function LinkTable({
               <button
                 type="button"
                 disabled={pageSafe === 0}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                onClick={() => {
+                  setPage((p) => Math.max(0, p - 1));
+                  setSelected(new Set());
+                }}
                 className="rounded border border-[var(--seo-border-strong)] px-2 py-1 disabled:opacity-40"
               >
                 Prev
@@ -976,7 +1002,10 @@ function LinkTable({
               <button
                 type="button"
                 disabled={pageSafe >= pageCount - 1}
-                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                onClick={() => {
+                  setPage((p) => Math.min(pageCount - 1, p + 1));
+                  setSelected(new Set());
+                }}
                 className="rounded border border-[var(--seo-border-strong)] px-2 py-1 disabled:opacity-40"
               >
                 Next

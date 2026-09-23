@@ -297,6 +297,9 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             payload = read_json_body(self)
+        except ValueError:  # malformed JSON (JSONDecodeError subclasses ValueError)
+            send_json(self, 400, {"error": "Request body must be valid JSON."})
+            return
         except Exception:  # noqa: BLE001
             logger.exception("analyze.py request body could not be parsed")
             send_json(self, 500, {"error": "Internal error while processing the request."})
