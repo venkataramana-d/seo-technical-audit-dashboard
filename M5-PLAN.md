@@ -10,7 +10,7 @@
 | T5.3 Internal link-graph viz | ✅ Done | `link-graph` action + `CrawlGraph.tsx` |
 | T5.2 Crawl PDF/Excel/CSV/JSON export | ✅ Done | server-side, from Neon rows |
 | T5.2 Shareable report links | ✅ Done | public `/share/<token>` |
-| T5.4 Scheduled re-crawls (firing) | ✅ Done | Vercel Cron → `enqueue_due_crawls` |
+| T5.4 Scheduled re-crawls (firing) | ✅ Done | `/api/cron` → `enqueue_due_crawls` (ping externally; Vercel built-in cron is plan-gated so it was dropped) |
 | T5.4 Regression-alert emails | ✅ Done | on finalize, best-effort |
 | T5.4 Unattended crawl execution | ✅ Done (opt-in) | `CRON_EXECUTE_CRAWLS`, resumable chunks |
 | T5.1 GSC + GA4 | ✅ Code-complete | activates when user connects Google |
@@ -34,8 +34,11 @@ read-only page (added to `AppShell` public routes). A **Share report** popover
 in the crawl header creates/copies/revokes the link.
 
 ### T5.4 — Scheduling, executor, alerts (`api/cron.py`, `worker/cron_runner.py`)
-- **On by default:** `GET /api/cron` (daily Vercel Cron in `vercel.json`) calls
-  `enqueue_due_crawls()` to FIRE due schedules; regression-alert emails after
+- **On by default:** `GET /api/cron` calls `enqueue_due_crawls()` to FIRE due
+  schedules. (Vercel's built-in cron is plan-gated and blocked the build, so the
+  `crons` entry was removed — trigger `/api/cron` from any external scheduler,
+  e.g. cron-job.org or GitHub Actions, guarded by `CRON_SECRET`.) Plus
+  regression-alert emails after
   any crawl finalizes completed (`send_regression_alert` in `finalize_crawl`,
   best-effort, needs an email backend + a prior completed crawl to diff).
 - **Opt-in:** `CRON_EXECUTE_CRAWLS=1` enables `cron_runner.process_due()` — a
