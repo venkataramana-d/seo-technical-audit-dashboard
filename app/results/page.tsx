@@ -8,6 +8,7 @@ import { ListChecksIcon } from "@/components/icons";
 import { ExportBar } from "@/components/ExportBar";
 import { AiSummaryCard } from "@/components/AiSummaryCard";
 import { AskCrawlCard } from "@/components/AskCrawlCard";
+import { AiFixPackCard } from "@/components/AiFixPackCard";
 import { allIssuesOf, avgScore, issuesByTitle, type AggregatedIssue } from "@/lib/aggregate";
 import { difficultyBreakdown } from "@/lib/difficulty";
 import { downloadCsv, severityColor } from "@/lib/format";
@@ -412,6 +413,7 @@ export default function ResultsPage() {
             issues={allIssuesOf(results)}
             contextLabel={`across ${results.length} audited pages (sitewide)`}
           />
+          <AiFixPackCard className="mb-4" />
         </>
       ) : null}
 

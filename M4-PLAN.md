@@ -26,4 +26,8 @@ Reframed accordingly:
   (`modules/llm.py` + `content_agent`) when a vaulted `anthropic` key exists.
 
 ## Status
-T4.2 shipped. T4.3/Fix-Pack pending (bigger; needs queue chunking).
+T4.2 shipped. T4.3 shipped as a **client-orchestrated AI Fix Pack** (no worker
+needed): `components/AiFixPackCard.tsx` bulk-drafts title/description/H1
+replacements for affected pages via the existing `fix-suggestion` endpoint
+(concurrency 3, 100-page cap) and exports CSV for Webflow paste. Direct
+Webflow-MCP write-back remains a future option.
