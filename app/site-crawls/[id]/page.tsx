@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { Card, PageHeader, ScoreCircle } from "@/components/ui";
+import { CrawlGraph, type GraphData } from "@/components/detail/CrawlGraph";
 import { GlobeIcon } from "@/components/icons";
 import { formatDate } from "@/lib/format";
 import { SCHEDULE_PRESETS, humanizeCron, presetIdForCron } from "@/lib/schedulePresets";
@@ -1557,6 +1558,7 @@ function SitewideTab({ crawlId }: { crawlId: number }) {
   const [graph, setGraph] = useState<CrawlGraphResponse | null>(null);
   const [linkScore, setLinkScore] = useState<LinkScoreResponse | null>(null);
   const [nearDup, setNearDup] = useState<NearDupResponse | null>(null);
+  const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -1569,9 +1571,10 @@ function SitewideTab({ crawlId }: { crawlId: number }) {
       postAnalyzeAction<CrawlGraphResponse>("crawl-graph", crawlId),
       postAnalyzeAction<LinkScoreResponse>("link-score", crawlId),
       postAnalyzeAction<NearDupResponse>("near-duplicates", crawlId),
+      postAnalyzeAction<GraphData>("link-graph", crawlId),
     ])
-      .then(([sw, g, ls, nd]) => {
-        if (!cancelled) { setSitewide(sw); setGraph(g); setLinkScore(ls); setNearDup(nd); }
+      .then(([sw, g, ls, nd, gd]) => {
+        if (!cancelled) { setSitewide(sw); setGraph(g); setLinkScore(ls); setNearDup(nd); setGraphData(gd); }
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to run analysis.");
@@ -1679,6 +1682,17 @@ function SitewideTab({ crawlId }: { crawlId: number }) {
             <LinkScoreTable title="Highest internal authority" rows={linkScore.topPages} />
             <LinkScoreTable title="Lowest (under-linked) pages" rows={linkScore.lowestPages} />
           </div>
+        </Card>
+      ) : null}
+
+      {graphData && graphData.nodes.length > 0 ? (
+        <Card>
+          <h3 className="mb-1 text-sm font-semibold text-[var(--seo-heading)]">Internal link graph</h3>
+          <p className="mb-3 text-xs text-[var(--seo-muted)]">
+            How your top pages link to each other, laid out by crawl depth. Hover a node for its
+            URL, Link Score, depth and in/out link counts.
+          </p>
+          <CrawlGraph data={graphData} />
         </Card>
       ) : null}
 

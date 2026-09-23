@@ -238,6 +238,68 @@ def _handle_link_score(handler, payload):
         send_json(handler, 500, {"error": "Internal error while computing link scores."})
 
 
+def _handle_link_graph(handler, payload):
+    """Node-link graph for the crawl visualization (M5 T5.3): the top pages by
+    internal Link Score plus the internal edges among them. Bounded to keep the
+    payload and client render cheap - the highest-authority pages are the ones
+    worth seeing structurally."""
+    crawl_id = _parse_crawl_id(handler, payload)
+    if crawl_id is None:
+        return
+    NODE_CAP = 60
+    try:
+        with SessionLocal() as db:
+            crawl = db.get(Crawl, crawl_id)
+            if crawl is None:
+                send_json(handler, 404, {"error": "Crawl not found."})
+                return
+            rows = db.execute(
+                select(Page.id, Page.normalized_url, Page.link_score, Page.depth,
+                       Page.inlinks, Page.outlinks)
+                .where(Page.crawl_id == crawl_id, Page.link_score.isnot(None))
+                .order_by(Page.link_score.desc())
+                .limit(NODE_CAP)
+            ).all()
+            if not rows:
+                send_json(handler, 200, {"crawlId": crawl_id, "nodes": [], "edges": [],
+                                         "truncated": False})
+                return
+            id_by_url = {r.normalized_url: i for i, r in enumerate(rows)}
+            node_ids = [r.id for r in rows]
+            nodes = [
+                {"url": r.normalized_url, "score": r.link_score, "depth": r.depth,
+                 "inlinks": r.inlinks, "outlinks": r.outlinks}
+                for r in rows
+            ]
+            # Internal edges whose BOTH ends are in the node set.
+            link_rows = db.execute(
+                select(Page.normalized_url, Link.target_url)
+                .join(Page, Link.page_id == Page.id)
+                .where(Page.crawl_id == crawl_id, Link.page_id.in_(node_ids),
+                       Link.link_type == "internal")
+            ).all()
+            edges = []
+            seen = set()
+            for src_url, tgt_url in link_rows:
+                i, j = id_by_url.get(src_url), id_by_url.get(tgt_url)
+                if i is not None and j is not None and i != j and (i, j) not in seen:
+                    seen.add((i, j))
+                    edges.append([i, j])
+            total_pages = db.execute(
+                select(func.count()).select_from(Page).where(Page.crawl_id == crawl_id)
+            ).scalar_one()
+            send_json(handler, 200, {
+                "crawlId": crawl_id,
+                "nodes": nodes,
+                "edges": edges,
+                "truncated": total_pages > len(nodes),
+                "totalPages": total_pages,
+            })
+    except Exception:  # noqa: BLE001
+        logger.exception("analyze.py link-graph failed for crawl %s", crawl_id)
+        send_json(handler, 500, {"error": "Internal error while building the link graph."})
+
+
 def _handle_near_duplicates(handler, payload):
     crawl_id = _parse_crawl_id(handler, payload)
     if crawl_id is None:
@@ -289,6 +351,7 @@ _ACTIONS = {
     "sitewide": _handle_sitewide,
     "crawl-graph": _handle_crawl_graph,
     "link-score": _handle_link_score,
+    "link-graph": _handle_link_graph,
     "near-duplicates": _handle_near_duplicates,
 }
 
