@@ -96,8 +96,8 @@ class TestAiDispatch:
     def test_ai_actions_registered(self):
         # "chat" was removed in Session 24 (chatbot dropped). "content-draft"
         # was added when the rebuild's Anthropic-backed Content Agent was folded
-        # in (draft-only title/meta suggestions).
-        assert set(ai._ACTIONS) == {"summary", "fix-suggestion", "content-draft"}
+        # in (draft-only title/meta suggestions). "ask" is M4 T4.2 (ask-your-crawl).
+        assert set(ai._ACTIONS) == {"summary", "ask", "fix-suggestion", "content-draft"}
 
     def test_unknown_action_returns_400(self):
         h = _mock_handler({"action": "nope"})

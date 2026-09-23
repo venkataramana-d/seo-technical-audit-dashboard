@@ -9,10 +9,45 @@ from modules.ai_assist import (
     _aggregate_issues,
     _chat,
     _parse_summary_reply,
+    answer_crawl_question,
     detect_fix_target,
     explain_audit,
     suggest_fix,
 )
+
+
+# ── answer_crawl_question (M4 T4.2 ask-your-crawl) ───────────────────────────
+
+def test_ask_requires_api_key():
+    r = answer_crawl_question("what is wrong?", [], 50, "")
+    assert r["ok"] is False and "key" in r["error"].lower()
+
+
+def test_ask_requires_non_empty_question():
+    r = answer_crawl_question("   ", [], 50, "fake-key")
+    assert r["ok"] is False
+
+
+@patch("modules.ai_assist._chat")
+def test_ask_grounds_on_issue_digest_and_returns_answer(mock_chat):
+    mock_chat.return_value = json.dumps({"answer": "Fix the missing titles first."})
+    issues = [{"issue": "Missing Meta Title", "severity": "High", "category": "Metadata",
+               "recommendation": "Add a title", "impact_score": 8}]
+    r = answer_crawl_question("what first?", issues, 62, "fake-key",
+                              context_label="across 10 pages")
+    assert r["ok"] is True
+    assert r["answer"] == "Fix the missing titles first."
+    # JSON mode requested, and the real issue is in the grounding prompt.
+    assert mock_chat.call_args.kwargs.get("json_mode") is True
+    user_msg = mock_chat.call_args[0][0][1]["content"]
+    assert "Missing Meta Title" in user_msg and "what first?" in user_msg
+
+
+@patch("modules.ai_assist._chat")
+def test_ask_falls_back_to_raw_text_when_not_json(mock_chat):
+    mock_chat.return_value = "Plain text answer."
+    r = answer_crawl_question("q", [], 50, "fake-key")
+    assert r["ok"] is True and r["answer"] == "Plain text answer."
 
 
 def _mk(issue, severity="Medium", category="Metadata"):

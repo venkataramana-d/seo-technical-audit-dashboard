@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules._http import read_json_body, require_str, send_json  # noqa: E402
-from modules.ai_assist import explain_audit, suggest_fix  # noqa: E402
+from modules.ai_assist import answer_crawl_question, explain_audit, suggest_fix  # noqa: E402
 from modules.content_agent import SUPPORTED_ISSUE_TYPES, PageContext, draft_for_issue_type  # noqa: E402
 from worker.api_key_service import get_default_org_vaulted_key  # noqa: E402
 from worker.auth import AuthError, require_authenticated  # noqa: E402
@@ -54,6 +54,28 @@ def _handle_fix_suggestion(handler, payload):
     except Exception:  # noqa: BLE001
         logger.exception("ai.py (fix-suggestion) request failed")
         send_json(handler, 500, {"ok": False, "error": "Internal error while generating the fix."})
+
+
+def _handle_ask(handler, payload):
+    """Ask-your-crawl (M4 T4.2): answer a natural-language question grounded in
+    the supplied audit issue data. Same Groq key precedence as the summary."""
+    try:
+        question = require_str(handler, payload, "question", field_name="question")
+        if question is None:
+            return
+        all_issues = payload.get("allIssues") or []
+        seo_score = payload.get("seoScore", 0)
+        url = (payload.get("url") or "").strip()
+        context_label = (payload.get("contextLabel") or "").strip() or None
+        api_key = payload.get("apiKey") or get_default_org_vaulted_key("groq") or os.environ.get("GROQ_API_KEY")
+
+        result = answer_crawl_question(question, all_issues, seo_score, api_key,
+                                       url=url, context_label=context_label)
+        status = 200 if result.get("ok") else 400
+        send_json(handler, status, result)
+    except Exception:  # noqa: BLE001
+        logger.exception("ai.py (ask) request failed")
+        send_json(handler, 500, {"ok": False, "error": "Internal error while answering the question."})
 
 
 def _handle_content_draft(handler, payload):
@@ -120,6 +142,7 @@ def _handle_content_draft(handler, payload):
 # per-page/per-issue personalized fix suggestions and the audit summary.)
 _ACTIONS = {
     "summary": _handle_summary,
+    "ask": _handle_ask,
     "fix-suggestion": _handle_fix_suggestion,
     "content-draft": _handle_content_draft,
 }

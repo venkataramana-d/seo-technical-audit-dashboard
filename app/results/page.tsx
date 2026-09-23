@@ -7,6 +7,7 @@ import { affectedHref, Card, EmptyState, looksLikeImage, looksLikeUrl, PageHeade
 import { ListChecksIcon } from "@/components/icons";
 import { ExportBar } from "@/components/ExportBar";
 import { AiSummaryCard } from "@/components/AiSummaryCard";
+import { AskCrawlCard } from "@/components/AskCrawlCard";
 import { allIssuesOf, avgScore, issuesByTitle, type AggregatedIssue } from "@/lib/aggregate";
 import { difficultyBreakdown } from "@/lib/difficulty";
 import { downloadCsv, severityColor } from "@/lib/format";
@@ -397,13 +398,21 @@ export default function ResultsPage() {
       ) : null}
 
       {rollup ? (
-        <AiSummaryCard
-          className="mb-4"
-          cacheKey="__sitewide__"
-          seoScore={Math.round(rollup.avg)}
-          issues={allIssuesOf(results)}
-          contextLabel={`across ${results.length} audited pages (sitewide)`}
-        />
+        <>
+          <AiSummaryCard
+            className="mb-4"
+            cacheKey="__sitewide__"
+            seoScore={Math.round(rollup.avg)}
+            issues={allIssuesOf(results)}
+            contextLabel={`across ${results.length} audited pages (sitewide)`}
+          />
+          <AskCrawlCard
+            className="mb-4"
+            seoScore={Math.round(rollup.avg)}
+            issues={allIssuesOf(results)}
+            contextLabel={`across ${results.length} audited pages (sitewide)`}
+          />
+        </>
       ) : null}
 
       {/* Sitewide (cross-URL) concept, moved here from the per-URL Detail

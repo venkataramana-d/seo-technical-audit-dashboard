@@ -133,6 +133,76 @@ def _aggregate_issues(all_issues: list[dict]) -> tuple[list[dict], dict]:
     return ordered, by_severity
 
 
+def answer_crawl_question(question: str, all_issues: list[dict], seo_score: float,
+                          api_key: str, url: str = "", context_label: str | None = None,
+                          model: str = _DEFAULT_MODEL) -> dict:
+    """Answer a natural-language question about an audit/crawl, grounded ONLY in
+    the supplied issue data (M4 T4.2 "ask your crawl"). Returns
+    {ok, answer, model} or {ok: False, error}. Strictly no-hallucination: the
+    model is told to answer only from the data and say so when the answer isn't
+    present."""
+    if not api_key:
+        return {"ok": False, "error": "Groq API key not configured"}
+    question = (question or "").strip()
+    if not question:
+        return {"ok": False, "error": "Ask a question about the audit."}
+    if len(question) > 500:
+        question = question[:500]
+
+    aggregated, by_severity = _aggregate_issues(all_issues)
+    is_sitewide = any(e["count"] > 1 for e in aggregated)
+    lines = []
+    for e in aggregated:
+        scope = f" (on {e['count']} pages)" if e["count"] > 1 else ""
+        rec = f" Fix: {e['recommendation']}" if e["recommendation"] else ""
+        lines.append(f"[{e['severity'].upper()}] {e['category']}: {e['issue']}{scope}.{rec}")
+    digest = "\n".join(lines)
+    if len(digest) > _MAX_AUDIT_CHARS:
+        digest = digest[:_MAX_AUDIT_CHARS]
+    totals_line = ", ".join(f"{n} {sev}" for sev, n in by_severity.items() if n)
+    site_context = context_label or (f"for {url}" if url else "this audit")
+
+    system_msg = (
+        "You are an expert technical SEO consultant answering a website owner's "
+        "question about their SEO audit. Answer ONLY using the audit data provided "
+        "- the deduplicated issues (each annotated with severity, category, "
+        "affected-page count, and fix) and the severity totals. Do NOT invent "
+        "issues, numbers, URLs, or facts not present in the data. If the data does "
+        "not contain the answer, say so plainly and suggest what to check instead. "
+        "Be concise and specific, cite the real issues and their counts, and give "
+        "actionable next steps when relevant. Plain English, no fluff."
+    )
+    scope_hint = (
+        "This is a sitewide audit; counts show how many pages each issue affects. "
+        if is_sitewide else
+        "This is a single-page audit; every issue is on this one page. "
+    )
+    user_msg = (
+        f"SEO health score: {seo_score}/100. {scope_hint}"
+        f"Issue totals by severity: {totals_line or 'none'}. "
+        f"Audit data {site_context}:\n\n{digest or '(no issues found)'}\n\n"
+        f"Question: {question}\n\n"
+        'Respond with ONLY a JSON object: {"answer": "your grounded answer"}. '
+        "Keep the answer under ~150 words."
+    )
+    try:
+        reply = _chat(
+            [{"role": "system", "content": system_msg}, {"role": "user", "content": user_msg}],
+            api_key, model=model, max_tokens=500, json_mode=True,
+        )
+        answer = ""
+        try:
+            answer = (json.loads(reply).get("answer") or "").strip()
+        except (json.JSONDecodeError, AttributeError):
+            answer = reply.strip()  # model ignored JSON mode; use raw text
+        if not answer:
+            return {"ok": False, "error": "The assistant did not return an answer."}
+        return {"ok": True, "answer": answer, "model": model}
+    except Exception as exc:
+        logger.warning("answer_crawl_question failed: %s", exc)
+        return {"ok": False, "error": _safe_error(exc)}
+
+
 def explain_audit(all_issues: list[dict], seo_score: float, api_key: str,
                    url: str = "", context_label: str | None = None, model: str = _DEFAULT_MODEL) -> dict:
     """Summarise SEO audit issues in plain English.
