@@ -53,6 +53,16 @@ def _find(checklist, check_id):
     return next(c for c in checklist["checks"] if c["id"] == check_id)
 
 
+def test_image_alt_check_uses_advanced_missing_alt_key():
+    # Regression: image_detail (analyze_images_advanced) exposes "missing_alt",
+    # not "missing_alt_count". Reading the wrong key made this check always PASS.
+    result = _base_result(image_detail={"missing_alt": 5})
+    assert _find(build_technical_audit_checklist(result), "image_alt_check")["status"] == "fail"
+    # Zero missing alts still passes.
+    result_ok = _base_result(image_detail={"missing_alt": 0})
+    assert _find(build_technical_audit_checklist(result_ok), "image_alt_check")["status"] == "pass"
+
+
 def test_all_pass_scenario_yields_35_checks_and_no_failures():
     checklist = build_technical_audit_checklist(_base_result())
     assert checklist["summary"]["total"] == 35

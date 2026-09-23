@@ -42,6 +42,20 @@ def test_heading_and_security_map_to_expected_themes():
     assert any("Responsiveness problem" == i["issue"] for i in grouped.get("Technical", []))
 
 
+def test_accessibility_issues_affect_the_score():
+    # Accessibility (WCAG) issues are in all_issues but must also count toward the
+    # score (folded into the "advanced" bucket), like mobile_audit.
+    clean = calculate_seo_score({"status_code": 200})["score"]
+    a11y_broken = calculate_seo_score({
+        "status_code": 200,
+        "accessibility": {"issues": [{
+            "issue": "Form control without an accessible label", "category": "Accessibility",
+            "severity": "High", "recommendation": "Add a label.", "impact_score": 7, "effort": "Low",
+        }]},
+    })["score"]
+    assert a11y_broken < clean
+
+
 def test_mobile_audit_issues_affect_the_score():
     # BUG#1: mobile_audit issues are in all_issues but used to contribute 0 to
     # the score. A page with a Critical mobile issue must score below a clean one.

@@ -491,7 +491,7 @@ def analyze_indexability_conflicts(result):
     #    noindex says "drop this page"; canonical says "consolidate into that one".
     #    Google may honour either, so the outcome is unpredictable.
     canonical_url = canonical.get("canonical_url")
-    if canonical_url and canonical.get("is_self_ref") is False:
+    if canonical_url and canonical.get("is_self_referencing") is False:
         issues.append(_issue(
             "Noindex Combined With a Cross-URL Canonical", "Indexability", "Warning",
             "This page is noindex but also canonicalises to a different URL - contradictory "

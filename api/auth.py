@@ -33,13 +33,23 @@ from worker.email_send import email_enabled, password_reset_html, send_email  # 
 
 
 def _base_url(handler) -> str:
-    """Best-effort public origin for building links in emails, from the request
-    headers (works behind Vercel's proxy), overridable via APP_BASE_URL."""
+    """Public origin for links in emails (e.g. password-reset). ALWAYS prefer the
+    pinned APP_BASE_URL. On a real deploy we NEVER derive it from the request's
+    Host/X-Forwarded-Host header, because an attacker can spoof that to send a
+    victim a genuine reset email whose link points at attacker.com (Host-header
+    poisoning -> token theft -> account takeover). Header-derived origin is used
+    only in local dev, where APP_BASE_URL is typically unset."""
     override = (os.environ.get("APP_BASE_URL") or "").strip().rstrip("/")
     if override:
         return override
+    from worker.auth import dev_mode
+    if not dev_mode():
+        # Deployed but APP_BASE_URL missing: refuse to trust the Host header.
+        # Callers treat "" as "no base URL" and skip building an external link.
+        logger.error("APP_BASE_URL is not set on a deployed host; refusing to build a link from the Host header.")
+        return ""
     host = handler.headers.get("x-forwarded-host") or handler.headers.get("Host") or ""
-    proto = handler.headers.get("x-forwarded-proto") or ("https" if os.environ.get("VERCEL") else "http")
+    proto = handler.headers.get("x-forwarded-proto") or "http"
     return f"{proto}://{host}".rstrip("/") if host else ""
 
 logger = logging.getLogger(__name__)

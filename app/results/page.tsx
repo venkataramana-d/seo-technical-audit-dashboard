@@ -452,7 +452,7 @@ export default function ResultsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {results.map((res) => (
+                  {results.slice(0, RESULTS_PAGE_SIZE).map((res) => (
                     <tr key={res.url} className="border-b border-[var(--table-row-border)]">
                       <td className="max-w-xs truncate px-4 py-3">{res.url}</td>
                       <td className="px-4 py-3">{res.heading_detail?.h1_text || <em>none</em>}</td>
@@ -461,6 +461,12 @@ export default function ResultsPage() {
                   ))}
                 </tbody>
               </table>
+              {results.length > RESULTS_PAGE_SIZE ? (
+                <p className="px-4 py-2 text-xs text-[var(--seo-muted)]">
+                  Showing the first {RESULTS_PAGE_SIZE} of {results.length.toLocaleString()} URLs -
+                  use “Export all issues” for the complete list.
+                </p>
+              ) : null}
             </div>
           ) : null}
         </Card>

@@ -512,27 +512,12 @@ def _build_issues(checks, summary):
 
     check_map = {c["id"]: c for c in checks}
 
-    vp = check_map.get("viewport_tag", {})
-    if vp.get("status") == "fail":
-        issues.append({
-            "issue": "Missing viewport meta tag",
-            "category": "Mobile SEO",
-            "severity": "Critical",
-            "recommendation": "Add <meta name='viewport' content='width=device-width, initial-scale=1'> to the <head>.",
-            "impact_score": 9,
-            "effort": "Low",
-            "affected": [{"value": "viewport", "detail": "not present"}],
-        })
-    elif vp.get("status") == "warning":
-        issues.append({
-            "issue": "Incorrect viewport configuration",
-            "category": "Mobile SEO",
-            "severity": "High",
-            "recommendation": "Set viewport content to 'width=device-width, initial-scale=1'.",
-            "impact_score": 7,
-            "effort": "Low",
-            "affected": [{"value": vp.get("value", ""), "detail": "viewport content (missing width=device-width)"}],
-        })
+    # NOTE: the viewport issue ("Missing viewport meta tag" / "Viewport Not Set to
+    # Device Width") is intentionally NOT emitted here - modules/advanced_checks.py
+    # already emits it (same DOM condition). Emitting both double-counted one
+    # problem against the score (both land in the "advanced" scoring bucket) and
+    # showed two near-identical rows. The mobile `viewport_tag` CHECK still feeds
+    # the mobile checklist status; only the duplicate all_issues row is dropped.
 
     pz = check_map.get("prevents_zoom", {})
     if pz.get("status") == "warning":

@@ -185,7 +185,10 @@ def build_technical_audit_checklist(result: dict) -> dict:
     checks.append(_item("heading_check", "Heading structure valid", "on_page",
         _severity_status(heading_detail.get("issues", [])), ""))
 
-    missing_alt = image_detail.get("missing_alt_count", 0)
+    # image_detail is analyze_images_advanced()'s output, which exposes the count
+    # as "missing_alt" (the legacy result["images"] block used "missing_alt_count").
+    # Read the advanced key first so this check doesn't always pass.
+    missing_alt = image_detail.get("missing_alt", image_detail.get("missing_alt_count", 0))
     checks.append(_item("image_alt_check", "Images have alt text", "on_page",
         "fail" if missing_alt > 0 else "pass", f"{missing_alt} missing alt"))
 

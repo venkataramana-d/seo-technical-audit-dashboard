@@ -469,7 +469,7 @@ export default function DetailPage() {
                             <span className="shrink-0 text-[var(--seo-muted)]">Canonical</span>
                             <span className="max-w-[70%] break-words text-right font-mono text-xs text-[var(--seo-text-light)]">
                               {r.canonical?.canonical_url || "self / not set"}
-                              {r.canonical?.canonical_url && r.canonical?.is_self_ref === false ? (
+                              {r.canonical?.canonical_url && r.canonical?.is_self_referencing === false ? (
                                 <span className="ml-1 text-[var(--seo-warning)]">(cross-URL)</span>
                               ) : null}
                             </span>

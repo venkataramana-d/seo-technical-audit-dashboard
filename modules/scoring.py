@@ -79,10 +79,14 @@ def calculate_seo_score(result):
         # previously not in any scoring bucket - a mobile-broken page (missing
         # viewport, intrusive interstitial) could still score 90+. Folded into
         # the "advanced" bucket, matching the WEIGHTS comment above.
+        # accessibility issues are appended to all_issues (auditor.py) but had no
+        # scoring bucket, so WCAG failures didn't affect the score - same bug the
+        # mobile_audit comment above describes. Folded in here too.
         "advanced":       _category_score(
                               result.get("advanced", {}).get("issues", []) +
                               result.get("redirect_analysis", {}).get("issues", []) +
-                              result.get("mobile_audit", {}).get("issues", [])
+                              result.get("mobile_audit", {}).get("issues", []) +
+                              result.get("accessibility", {}).get("issues", [])
                           ),
         "site_health":    _category_score(result.get("site_health", {}).get("issues", [])),
         "page_specific":  _category_score(

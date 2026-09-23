@@ -9,7 +9,7 @@ import pandas as pd
 def _score_label(score):
     if score >= 90:
         return "Excellent"
-    elif score >= 75:
+    elif score >= 70:
         return "Good"
     elif score >= 50:
         return "Needs Attention"
@@ -194,7 +194,7 @@ def generate_excel(results):
         score_col = list(summary_df.columns).index("SEO Score") if "SEO Score" in summary_df.columns else -1
         if score_col >= 0:
             for ri, sc in enumerate(summary_df["SEO Score"], 1):
-                fmt = green if sc >= 90 else (blue if sc >= 75 else (amber if sc >= 50 else red))
+                fmt = green if sc >= 90 else (blue if sc >= 70 else (amber if sc >= 50 else red))
                 ws.write(ri, score_col, sc, fmt)
 
         # Format issues sheet
@@ -259,7 +259,7 @@ def generate_pdf(results):
         total = len(results)
         avg_score = sum(r.get("seo_score", 0) for r in results) / total if total else 0
         critical = sum(1 for r in results if r.get("seo_score", 0) < 50)
-        healthy = sum(1 for r in results if r.get("seo_score", 0) >= 75)
+        healthy = sum(1 for r in results if r.get("seo_score", 0) >= 70)
         issues_total = sum(len(r.get("all_issues", [])) for r in results)
 
         checklist_summaries = [
@@ -276,7 +276,7 @@ def generate_pdf(results):
         pdf.cell(0, 6, f"Report Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True)
         pdf.cell(0, 6, f"Total URLs Audited: {total}", ln=True)
         pdf.cell(0, 6, f"Average SEO Score: {avg_score:.1f}/100", ln=True)
-        pdf.cell(0, 6, f"Healthy URLs (Score >= 75): {healthy}", ln=True)
+        pdf.cell(0, 6, f"Healthy URLs (Score >= 70): {healthy}", ln=True)
         pdf.cell(0, 6, f"Critical URLs (Score < 50): {critical}", ln=True)
         pdf.cell(0, 6, f"Total Issues Found: {issues_total}", ln=True)
         if checklist_summaries:
@@ -322,7 +322,7 @@ def generate_pdf(results):
 
             if sc >= 90:
                 pdf.set_fill_color(209, 250, 229)
-            elif sc >= 75:
+            elif sc >= 70:
                 pdf.set_fill_color(219, 234, 254)
             elif sc >= 50:
                 pdf.set_fill_color(254, 243, 199)

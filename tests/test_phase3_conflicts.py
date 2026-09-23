@@ -62,7 +62,7 @@ def test_loop_ignores_trailing_slash():
 
 # ── Indexing conflicts ───────────────────────────────────────────────────────
 
-def _result(*, indexable, canonical_url=None, is_self_ref=False, disallowed=False):
+def _result(*, indexable, canonical_url=None, is_self_referencing=False, disallowed=False):
     site_health_issues = []
     if disallowed:
         site_health_issues.append({"issue": "Page Blocked by robots.txt", "severity": "Critical"})
@@ -70,7 +70,7 @@ def _result(*, indexable, canonical_url=None, is_self_ref=False, disallowed=Fals
         "url": "https://example.com/p",
         "final_url": "https://example.com/p",
         "indexability": {"is_indexable": indexable},
-        "canonical": {"canonical_url": canonical_url, "is_self_ref": is_self_ref},
+        "canonical": {"canonical_url": canonical_url, "is_self_referencing": is_self_referencing},
         "site_health": {"issues": site_health_issues},
     }
 
@@ -86,13 +86,13 @@ def test_noindex_plus_disallow_is_critical():
 
 def test_noindex_plus_cross_canonical_is_warning():
     issues = analyze_indexability_conflicts(
-        _result(indexable=False, canonical_url="https://example.com/other", is_self_ref=False)
+        _result(indexable=False, canonical_url="https://example.com/other", is_self_referencing=False)
     )
     assert _sev(issues, "Cross-URL Canonical") == "Warning"
 
 
 def test_noindex_with_self_canonical_no_canonical_conflict():
     issues = analyze_indexability_conflicts(
-        _result(indexable=False, canonical_url="https://example.com/p", is_self_ref=True)
+        _result(indexable=False, canonical_url="https://example.com/p", is_self_referencing=True)
     )
     assert not any("Canonical" in i["issue"] for i in issues)

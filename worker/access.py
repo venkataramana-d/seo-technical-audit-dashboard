@@ -9,11 +9,9 @@ existing flows and pytest keep working without seeding a login.
 """
 from __future__ import annotations
 
-import os
-
 from sqlalchemy import select
 
-from worker.auth import AuthError, get_session_user_id, primary_org_id
+from worker.auth import AuthError, dev_mode, get_session_user_id, primary_org_id
 from worker.db.models import Crawl, Project
 
 
@@ -31,7 +29,11 @@ def resolve_org_id(handler, db) -> int | None:
         oid = primary_org_id(db, uid)
         if oid is not None:
             return oid
-    if os.environ.get("VERCEL"):
+    # Fail CLOSED on any real deploy, consistent with worker/auth.py's gating.
+    # (Previously keyed on raw VERCEL env, which fails OPEN on a non-Vercel host
+    # that doesn't set VERCEL - an unauthenticated request would get no scoping
+    # instead of 401.) dev_mode() is only true locally/in tests.
+    if not dev_mode():
         raise AuthError(401, "authentication required")
     return None
 

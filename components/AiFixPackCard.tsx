@@ -33,7 +33,7 @@ interface FixRow {
 function currentValue(r: AuditResult, target: string): string {
   if (target === "title") return r.metadata?.title || "";
   if (target === "description") return r.metadata?.description || "";
-  if (target === "h1") return r.heading_detail?.h1_text?.[0] || "";
+  if (target === "h1") return r.heading_detail?.h1_text || "";
   return "";
 }
 
@@ -81,7 +81,7 @@ export function AiFixPackCard({ className = "" }: { className?: string }) {
                 url: r.url,
                 title: r.metadata?.title,
                 description: r.metadata?.description,
-                h1: r.heading_detail?.h1_text?.[0],
+                h1: r.heading_detail?.h1_text,
                 content_snippet: (r.content?.intro_paragraphs || []).join(" ").slice(0, 1500),
               },
               apiKey: groqApiKey || undefined,

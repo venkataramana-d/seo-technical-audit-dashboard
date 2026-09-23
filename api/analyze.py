@@ -27,6 +27,7 @@ from http.server import BaseHTTPRequestHandler
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sqlalchemy import select  # noqa: E402
 from modules._http import read_json_body, send_json  # noqa: E402
 from modules.crawl_graph import build_depth_report, excessive_depth_issues  # noqa: E402
 from modules.link_score import build_link_score_report  # noqa: E402
