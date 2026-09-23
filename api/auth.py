@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules._http import read_json_body, require_str, send_json  # noqa: E402
 from worker.auth import (  # noqa: E402
-    AuthError, build_session_cookie, create_session_token,
+    AuthError, build_session_cookie, check_rate_limit, create_session_token,
     create_email_reset_token, create_password_reset_request,
     generate_temp_password, get_session_user_id,
     list_password_reset_requests, list_users, login as auth_login,
@@ -100,6 +100,13 @@ def _handle_signup(handler, payload):
         send_json(handler, 500, {"error": "Internal error during signup."})
 
 
+def _client_ip(handler) -> str:
+    """Best-effort client IP for rate-limit keying (first hop of X-Forwarded-For
+    behind Vercel's proxy)."""
+    xff = handler.headers.get("x-forwarded-for") or ""
+    return (xff.split(",")[0].strip() if xff else handler.headers.get("x-real-ip", "")) or "unknown"
+
+
 def _handle_login(handler, payload):
     email = require_str(handler, payload, "email", field_name="email")
     if email is None:
@@ -109,6 +116,10 @@ def _handle_login(handler, payload):
         return
     try:
         with SessionLocal() as db:
+            # Rate limit by IP to throttle online brute-force / credential stuffing.
+            if not check_rate_limit(db, _client_ip(handler), "login"):
+                send_json(handler, 429, {"error": "Too many attempts. Please wait a few minutes and try again."})
+                return
             user = auth_login(db, email, password)
             if user is None:
                 send_json(handler, 401, {"error": "invalid email or password"})
@@ -136,6 +147,12 @@ def _handle_request_password_reset(handler, payload):
     if email is None:
         return
     try:
+        # Throttle reset requests (per IP+email) to prevent reset-email bombing.
+        with SessionLocal() as db:
+            if not check_rate_limit(db, f"{_client_ip(handler)}|{email.strip().lower()}", "reset"):
+                # Neutral 200 so this can't be used to probe anything.
+                send_json(handler, 200, {"ok": True, "emailed": email_enabled()})
+                return
         if email_enabled():
             with SessionLocal() as db:
                 token = create_email_reset_token(db, email)

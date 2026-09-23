@@ -47,6 +47,21 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # Session revocation: sessions issued (iat) before this instant are rejected.
+    # Bumped on every password change/reset so old cookies stop working.
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class AuthAttempt(Base):
+    """Rate-limiting ledger for auth actions (login, password-reset request).
+    One row per attempt; a rolling-window count throttles brute-force /
+    email-bombing. Rows older than the window are pruned opportunistically."""
+    __tablename__ = "auth_attempts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ident: Mapped[str] = mapped_column(String(255), nullable=False, index=True)  # ip|email key
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
 
 class Organization(Base):

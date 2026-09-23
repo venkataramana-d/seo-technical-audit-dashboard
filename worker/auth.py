@@ -18,12 +18,13 @@ import os
 import time
 from http.cookies import SimpleCookie
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 import secrets
 
 from worker.db.models import (
+    AuthAttempt,
     Membership,
     Organization,
     PasswordResetRequest,
@@ -136,12 +137,16 @@ def _sign(payload: str) -> str:
 
 
 def create_session_token(user_id: int) -> str:
-    exp = int(time.time()) + SESSION_TTL_SECONDS
-    payload = _b64url(json.dumps({"uid": int(user_id), "exp": exp}).encode("utf-8"))
+    now = int(time.time())
+    exp = now + SESSION_TTL_SECONDS
+    # `iat` (issued-at) enables session revocation: see get_session_user_id.
+    payload = _b64url(json.dumps({"uid": int(user_id), "iat": now, "exp": exp}).encode("utf-8"))
     return f"{payload}.{_sign(payload)}"
 
 
-def verify_session_token(token: str | None) -> int | None:
+def _decode_session(token: str | None) -> tuple[int, int] | None:
+    """Verify signature + expiry and return (uid, iat) or None. Pure - no DB, no
+    revocation check (that's get_session_user_id's job)."""
     if not token or "." not in token:
         return None
     payload, _, sig = token.partition(".")
@@ -152,13 +157,21 @@ def verify_session_token(token: str | None) -> int | None:
     try:
         obj = json.loads(_b64url_decode(payload))
         uid, exp = obj.get("uid"), obj.get("exp")
+        iat = obj.get("iat", 0)
         if not isinstance(uid, int) or not isinstance(exp, int):
             return None
         if exp < int(time.time()):
             return None
-        return uid
+        return uid, (iat if isinstance(iat, int) else 0)
     except (ValueError, TypeError):
         return None
+
+
+def verify_session_token(token: str | None) -> int | None:
+    """Signature + expiry check only (no revocation). Kept for callers/tests that
+    just need the signed uid."""
+    d = _decode_session(token)
+    return d[0] if d else None
 
 
 # --------------------------------------------------------------------------- #
@@ -191,8 +204,63 @@ def read_session_cookie(handler) -> str | None:
 
 
 def get_session_user_id(handler) -> int | None:
-    """The authenticated user id from the request's session cookie, or None."""
-    return verify_session_token(read_session_cookie(handler))
+    """The authenticated user id from the request's session cookie, or None.
+
+    Also enforces session revocation: a token issued (iat) before the user's
+    `password_changed_at` is rejected, so changing/resetting a password logs out
+    every older session. Best-effort - a DB error never invalidates an otherwise
+    valid, HMAC-signed, unexpired token (fail-open only on infrastructure error,
+    not on a real revocation)."""
+    decoded = _decode_session(read_session_cookie(handler))
+    if decoded is None:
+        return None
+    uid, iat = decoded
+    try:
+        from worker.db.session import SessionLocal
+        with SessionLocal() as db:
+            pca = db.scalar(select(User.password_changed_at).where(User.id == uid))
+        if pca is not None:
+            import datetime as _dt
+            pca_epoch = int(pca.replace(tzinfo=_dt.timezone.utc).timestamp())
+            if iat < pca_epoch:
+                return None
+    except Exception:  # noqa: BLE001 - infra hiccup must not lock out valid sessions
+        pass
+    return uid
+
+
+def _now_naive_utc():
+    import datetime as _dt
+    return _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)
+
+
+# (max_attempts, window_seconds) per action.
+_RATE_LIMITS = {"login": (10, 300), "reset": (5, 3600)}
+
+
+def check_rate_limit(db, ident: str, action: str) -> bool:
+    """Record one attempt for (ident, action) and return True if it's within the
+    rolling-window limit, False if the limit is exceeded. Best-effort: any DB
+    error returns True (never lock users out on infra failure)."""
+    import datetime as _dt
+    limit, window = _RATE_LIMITS.get(action, (20, 300))
+    try:
+        now = _now_naive_utc()
+        cutoff = now - _dt.timedelta(seconds=window)
+        recent = db.scalar(
+            select(func.count()).select_from(AuthAttempt).where(
+                AuthAttempt.ident == ident,
+                AuthAttempt.action == action,
+                AuthAttempt.created_at >= cutoff,
+            )
+        ) or 0
+        # Opportunistic prune of rows older than a day.
+        db.query(AuthAttempt).filter(AuthAttempt.created_at < now - _dt.timedelta(days=1)).delete()
+        db.add(AuthAttempt(ident=ident[:255], action=action, created_at=now))
+        db.commit()
+        return recent < limit
+    except Exception:  # noqa: BLE001
+        return True
 
 
 def require_user_id(handler) -> int:
@@ -359,6 +427,7 @@ def set_user_password(db, user_id: int, new_password: str) -> bool:
     if user is None:
         return False
     user.password_hash = hash_password(new_password)
+    user.password_changed_at = _now_naive_utc()  # revoke older sessions
     db.commit()
     return True
 
@@ -385,6 +454,13 @@ def create_email_reset_token(db, email: str, ttl_seconds: int = 3600) -> str | N
     if user_id is None:
         return None
     now = _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)
+    # Invalidate any still-pending email reset tokens for this address before
+    # issuing a new one, so only the latest link is ever valid (M2 hardening).
+    db.query(PasswordResetRequest).filter(
+        PasswordResetRequest.email == email,
+        PasswordResetRequest.status == "pending",
+        PasswordResetRequest.token_hash.isnot(None),
+    ).update({"status": "superseded"}, synchronize_session=False)
     token = secrets.token_urlsafe(32)
     db.add(
         PasswordResetRequest(
@@ -422,6 +498,7 @@ def reset_password_with_token(db, token: str, new_password: str) -> bool:
     if user is None:
         return False
     user.password_hash = hash_password(new_password)
+    user.password_changed_at = now  # revoke older sessions
     req.status = "resolved"
     req.resolved_at = now
     db.commit()

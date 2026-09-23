@@ -366,3 +366,50 @@ def test_email_reset_token_expired_rejected(isolated_db):
 def test_reset_with_bad_token_rejected(isolated_db):
     h = _post("reset-password-with-token", {"token": "not-a-real-token", "newPassword": "brandnew9"})
     assert _status_and_body(h)[0] == 400
+
+
+# ---- auth hardening (rate limit, reset reissue, session revocation) ----
+
+def test_check_rate_limit_blocks_after_limit(isolated_db):
+    from worker.auth import check_rate_limit, _RATE_LIMITS
+    limit, _ = _RATE_LIMITS["login"]
+    with isolated_db() as db:
+        allowed = [check_rate_limit(db, "1.2.3.4", "login") for _ in range(limit + 2)]
+    assert all(allowed[:limit])          # first `limit` attempts allowed
+    assert allowed[limit] is False       # the next one is throttled
+    # A different key is independent.
+    with isolated_db() as db:
+        assert check_rate_limit(db, "9.9.9.9", "login") is True
+
+
+def test_email_reset_reissue_supersedes_prior(isolated_db):
+    from worker.auth import create_email_reset_token, hash_password
+    from worker.db.models import User, PasswordResetRequest
+    with isolated_db() as db:
+        db.add(User(email="u@x.com", password_hash=hash_password("hunter2xy")))
+        db.commit()
+        t1 = create_email_reset_token(db, "u@x.com")
+        t2 = create_email_reset_token(db, "u@x.com")
+        assert t1 and t2 and t1 != t2
+        pending = db.query(PasswordResetRequest).filter_by(email="u@x.com", status="pending").all()
+        superseded = db.query(PasswordResetRequest).filter_by(email="u@x.com", status="superseded").all()
+    assert len(pending) == 1 and len(superseded) == 1
+
+
+def test_session_revoked_after_password_change(isolated_db, monkeypatch):
+    import datetime as _dt
+    import worker.db.session as dbsession
+    from worker.auth import hash_password, create_session_token, get_session_user_id
+    from worker.db.models import User
+    # get_session_user_id imports SessionLocal from worker.db.session at call time.
+    monkeypatch.setattr(dbsession, "SessionLocal", isolated_db)
+    with isolated_db() as db:
+        u = User(email="r@x.com", password_hash=hash_password("hunter2xy"))
+        db.add(u); db.commit(); uid = u.id
+    token = create_session_token(uid)
+    h = _mock_handler(cookie=f"sa_session={token}")
+    assert get_session_user_id(h) == uid            # valid before any change
+    with isolated_db() as db:
+        db.get(User, uid).password_changed_at = _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None) + _dt.timedelta(seconds=60)
+        db.commit()
+    assert get_session_user_id(h) is None           # revoked: token iat < password_changed_at
